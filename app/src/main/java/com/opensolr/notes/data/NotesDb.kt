@@ -75,15 +75,15 @@ class NotesDb(context: Context) : SQLiteOpenHelper(context.applicationContext, "
 
     fun count(): Int = readableDatabase.rawQuery("SELECT COUNT(*) FROM note WHERE deleted = 0", null).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
 
-    /** A new note, or the edited text of one: written at once, sent to the index by the next sync. */
-    fun save(id: String?, title: String, text: String, category: String?): Note {
+    /** A new note, or the edited text of one: written at once, sent to the index by the next sync. An emptied category is asked of the AI again. */
+    fun save(id: String?, title: String, text: String, category: String): Note {
         val now = System.currentTimeMillis()
         val existing = id?.let { get(it) }
         val note = Note(
             id = existing?.id ?: UUID.randomUUID().toString(),
             title = title.trim(),
             text = text,
-            category = category ?: existing?.category ?: "",
+            category = category.trim(),
             createdAt = existing?.createdAt ?: now,
             updatedAt = now,
             synced = false,

@@ -50,7 +50,7 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
 
     fun saveAndClose() {
         val changed = existing == null || existing.title != title.trim() || existing.text != text || existing.category != category.trim()
-        if (text.isNotBlank() && changed) vm.save(existing?.id, title, text, category.trim().ifBlank { null })
+        if (text.isNotBlank() && changed) vm.save(existing?.id, title, text, category)
         vm.back()
     }
 

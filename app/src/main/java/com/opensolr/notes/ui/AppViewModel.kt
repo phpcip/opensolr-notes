@@ -120,7 +120,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         return h.mapNotNull { hit -> byId[hit.id]?.takeIf { !it.deleted }?.let { it to hit.snippet } }
     }
 
-    fun save(id: String?, title: String, text: String, category: String?): Note {
+    fun save(id: String?, title: String, text: String, category: String): Note {
         val note = db.save(id, title, text, category)
         reload()
         syncNow()
