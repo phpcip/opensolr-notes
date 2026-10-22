@@ -1,0 +1,1 @@
+Simple notes kept in your own Opensolr Index, searchable by words and meaning.

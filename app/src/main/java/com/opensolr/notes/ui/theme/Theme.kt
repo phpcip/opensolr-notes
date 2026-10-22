@@ -1,0 +1,250 @@
+package com.opensolr.notes.ui.theme
+
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
+import androidx.compose.material3.Typography
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import kotlinx.coroutines.launch
+import androidx.compose.ui.node.invalidateDraw
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.ExperimentalTextApi
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
+import com.opensolr.notes.R
+
+/** The colours the app actually uses, beyond Material's scheme: the Opensolr editorial palette. */
+@Immutable
+data class Palette(
+    val paper: Color,
+    val band: Color,
+    val chip: Color,
+    val ink: Color,
+    val muted: Color,
+    val hairline: Color,
+    val accent: Color,
+    val onAccent: Color,
+    /** The accent as a filled surface behind text or an icon: a deeper tone than [accent], so white on it clears 4.5:1 in both themes. */
+    val accentFill: Color,
+    val onAccentFill: Color,
+    /** The quiet fill behind the buttons over the grid and in the header: on paper a bordered cell alone barely read as a button. */
+    val buttonFill: Color,
+    /** The row of tools under the header: a shade apart from it, so the two rows read as two. */
+    val toolFill: Color,
+    /** The bar that appears when photos are ticked: a shade the other two never use. */
+    val dockFill: Color,
+    /** A flagged conversation: a warm tint behind its row, and the tile, rim and mark of its flag badge. */
+    val flagFill: Color,
+    val flagTile: Color,
+    val flagRim: Color,
+    val flagMark: Color,
+    /** The band that heads each message of a conversation, its edge, and the address pills on it. */
+    val headFill: Color,
+    val headRim: Color,
+    val pillFill: Color,
+    /** The bar that titles a group of rows (a day, a sender, a section of mailboxes), and its edge. */
+    val groupFill: Color,
+    val groupRim: Color,
+)
+
+private val LightPalette = Palette(
+    paper = Color(0xFFFFFFFF),
+    band = Color(0xFFFBFAF8),
+    chip = Color(0xFFF4F1EC),
+    ink = Color(0xFF111111),
+    muted = Color(0xFF4A4540),
+    hairline = Color(0xFFD9D4CC),
+    accent = Color(0xFFC05520),
+    onAccent = Color(0xFFFFFFFF),
+    accentFill = Color(0xFFA8481B),
+    onAccentFill = Color(0xFFFFFFFF),
+    buttonFill = Color(0xFFF3EFE9),
+    toolFill = Color(0xFFFAF7F2),
+    dockFill = Color(0xFFEAE4DA),
+    flagFill = Color(0xFFFFF7E0),
+    flagTile = Color(0xFFFDECB3),
+    flagRim = Color(0xFFE3B23C),
+    flagMark = Color(0xFF8A6100),
+    headFill = Color(0xFFF1ECE4),
+    headRim = Color(0xFFCFC7BB),
+    pillFill = Color(0xFFFFFFFF),
+    groupFill = Color(0xFFF1D5C5),
+    groupRim = Color(0xFFD9A487),
+)
+
+private val DarkPalette = Palette(
+    paper = Color(0xFF111111),
+    band = Color(0xFF181715),
+    chip = Color(0xFF22201D),
+    ink = Color(0xFFF4F1EC),
+    muted = Color(0xFFB9B3A9),
+    hairline = Color(0xFF3A3632),
+    accent = Color(0xFFE0703A),
+    onAccent = Color(0xFFFFFFFF),
+    accentFill = Color(0xFFB4551F),
+    onAccentFill = Color(0xFFFFFFFF),
+    buttonFill = Color(0xFF26231F),
+    toolFill = Color(0xFF1A1917),
+    dockFill = Color(0xFF26231F),
+    flagFill = Color(0xFF262012),
+    flagTile = Color(0xFF4A3C12),
+    flagRim = Color(0xFF8A6A1A),
+    flagMark = Color(0xFFF5C518),
+    headFill = Color(0xFF211F1C),
+    headRim = Color(0xFF4A453F),
+    pillFill = Color(0xFF34302B),
+    groupFill = Color(0xFF4A2A1B),
+    groupRim = Color(0xFF7A4128),
+)
+
+val LocalPalette = staticCompositionLocalOf { LightPalette }
+
+/** Space Grotesk, bundled (SIL Open Font License, see third_party/space-grotesk/OFL.txt), as a variable font driven to each weight. */
+@OptIn(ExperimentalTextApi::class)
+private val SpaceGrotesk = FontFamily(
+    Font(R.font.space_grotesk_regular, FontWeight.Normal),
+    Font(R.font.space_grotesk_medium, FontWeight.Medium),
+    Font(R.font.space_grotesk_semibold, FontWeight.SemiBold),
+    Font(R.font.space_grotesk_bold, FontWeight.Bold),
+)
+
+private fun style(size: Int, weight: FontWeight, line: Double = 1.4, tracking: Double = 0.0) = TextStyle(
+    fontFamily = SpaceGrotesk,
+    fontWeight = weight,
+    fontSize = size.sp,
+    lineHeight = (size * line).sp,
+    letterSpacing = tracking.em,
+)
+
+private val AppTypography = Typography(
+    displaySmall = style(34, FontWeight.Bold, 1.08, -0.03),
+    headlineMedium = style(28, FontWeight.Bold, 1.1, -0.02),
+    headlineSmall = style(22, FontWeight.Bold, 1.2, -0.01),
+    titleLarge = style(20, FontWeight.Bold, 1.25),
+    titleMedium = style(17, FontWeight.Bold, 1.3),
+    titleSmall = style(15, FontWeight.Bold, 1.3),
+    bodyLarge = style(17, FontWeight.Medium, 1.5),
+    bodyMedium = style(15, FontWeight.Medium, 1.5),
+    bodySmall = style(14, FontWeight.Medium, 1.45),
+    labelLarge = style(15, FontWeight.Bold, 1.2),
+    labelMedium = style(14, FontWeight.Bold, 1.2, 0.08),
+    labelSmall = style(14, FontWeight.SemiBold, 1.2),
+)
+
+private val AppShapes = Shapes(
+    extraSmall = RoundedCornerShape(2.dp),
+    small = RoundedCornerShape(2.dp),
+    medium = RoundedCornerShape(2.dp),
+    large = RoundedCornerShape(2.dp),
+    extraLarge = RoundedCornerShape(2.dp),
+)
+
+/** Maps the palette onto Material's colour roles so stock components match. */
+private fun scheme(p: Palette, dark: Boolean): ColorScheme {
+    val base = if (dark) darkColorScheme() else lightColorScheme()
+    return base.copy(
+        primary = p.accentFill,
+        onPrimary = p.onAccentFill,
+        primaryContainer = p.chip,
+        onPrimaryContainer = p.ink,
+        secondary = p.ink,
+        onSecondary = p.paper,
+        secondaryContainer = p.chip,
+        onSecondaryContainer = p.ink,
+        background = p.paper,
+        onBackground = p.ink,
+        surface = p.paper,
+        onSurface = p.ink,
+        surfaceVariant = p.band,
+        onSurfaceVariant = p.muted,
+        surfaceContainer = p.paper,
+        surfaceContainerLow = p.paper,
+        surfaceContainerHigh = p.band,
+        surfaceContainerHighest = p.chip,
+        surfaceContainerLowest = p.paper,
+        outline = p.hairline,
+        outlineVariant = p.hairline,
+        error = p.accentFill,
+        onError = p.onAccentFill,
+    )
+}
+
+/** The app theme, light or dark following the system. */
+@Composable
+fun OpensolrTheme(content: @Composable () -> Unit) {
+    val dark = isSystemInDarkTheme()
+    val palette = if (dark) DarkPalette else LightPalette
+    // The activity is not recreated when the theme flips, so the status and navigation bar icons follow it here.
+    val view = androidx.compose.ui.platform.LocalView.current
+    if (!view.isInEditMode) androidx.compose.runtime.SideEffect {
+        val window = (view.context as? android.app.Activity)?.window ?: return@SideEffect
+        androidx.core.view.WindowCompat.getInsetsController(window, view).apply {
+            isAppearanceLightStatusBars = !dark
+            isAppearanceLightNavigationBars = !dark
+        }
+    }
+    CompositionLocalProvider(LocalPalette provides palette) {
+        MaterialTheme(
+            colorScheme = scheme(palette, dark),
+            typography = AppTypography,
+            shapes = AppShapes,
+        ) {
+            // Every tap target in the app shows the press plainly: a clear accent wash while the finger is on it.
+            val press = remember(palette) { PressIndication(palette.accent.copy(alpha = if (dark) 0.28f else 0.18f)) }
+            CompositionLocalProvider(androidx.compose.foundation.LocalIndication provides press, content = content)
+        }
+    }
+}
+
+/** The press feedback of every clickable: a wash over the whole target, held at least long enough to be seen. */
+private class PressIndication(private val color: Color) : androidx.compose.foundation.IndicationNodeFactory {
+    override fun create(interactionSource: androidx.compose.foundation.interaction.InteractionSource): androidx.compose.ui.node.DelegatableNode =
+        PressNode(interactionSource, color)
+
+    override fun equals(other: Any?) = other is PressIndication && other.color == color
+    override fun hashCode() = color.hashCode()
+}
+
+private class PressNode(
+    private val source: androidx.compose.foundation.interaction.InteractionSource,
+    private val color: Color,
+) : androidx.compose.ui.Modifier.Node(), androidx.compose.ui.node.DrawModifierNode {
+    private var pressed = false
+    private var since = 0L
+
+    override fun onAttach() {
+        coroutineScope.launch {
+            source.interactions.collect { i ->
+                when (i) {
+                    is androidx.compose.foundation.interaction.PressInteraction.Press -> {
+                        pressed = true; since = System.currentTimeMillis(); invalidateDraw()
+                    }
+                    is androidx.compose.foundation.interaction.PressInteraction.Release,
+                    is androidx.compose.foundation.interaction.PressInteraction.Cancel -> {
+                        val left = 140L - (System.currentTimeMillis() - since)
+                        if (left > 0) kotlinx.coroutines.delay(left)
+                        pressed = false; invalidateDraw()
+                    }
+                }
+            }
+        }
+    }
+
+    override fun androidx.compose.ui.graphics.drawscope.ContentDrawScope.draw() {
+        drawContent()
+        if (pressed) drawRect(color)
+    }
+}

@@ -1,0 +1,615 @@
+package com.opensolr.notes.ui
+
+import androidx.compose.ui.graphics.luminance
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.text.KeyboardOptions
+import com.opensolr.notes.ui.theme.LocalPalette
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+private val SHAPE = RoundedCornerShape(2.dp)
+
+/** A button's touch: on at once when pressed, held a moment after release so even a quick tap shows. */
+@androidx.compose.runtime.Stable
+class Press(val source: androidx.compose.foundation.interaction.MutableInteractionSource, val on: Boolean)
+
+@Composable
+fun rememberPress(): Press {
+    val source = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val down by source.collectIsPressedAsState()
+    var shown by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(down) {
+        if (down) shown = true else { kotlinx.coroutines.delay(PRESS_HOLD_MS); shown = false }
+    }
+    return Press(source, shown)
+}
+
+/** How long a touch stays visible after the finger lifts: a quick tap still shows the whole flash. */
+const val PRESS_HOLD_MS = 260L
+/** How much a touched button grows. */
+const val PRESS_SCALE = 1.08f
+
+/**
+ * Every button of the app: 2px corners, a quiet fill and a thin border at rest. On touch it flips to ink on
+ * paper (black on white, white on black) with a thick rim, grows a little, and holds that for [PRESS_HOLD_MS].
+ */
+@Composable
+fun Modifier.tile(
+    press: Press,
+    enabled: Boolean = true,
+    fill: Color? = null,
+    rim: Color? = null,
+    solid: Boolean = false,
+    rimWidth: androidx.compose.ui.unit.Dp = 1.dp,
+    onClick: () -> Unit,
+): Modifier {
+    val p = LocalPalette.current
+    val hit = p.ink
+    val speed = androidx.compose.animation.core.tween<Color>(if (press.on) 30 else 200)
+    val bg by androidx.compose.animation.animateColorAsState(if (press.on) hit else fill ?: p.buttonFill, speed, label = "tileFill")
+    val edge by androidx.compose.animation.animateColorAsState(if (press.on) p.accent else rim ?: p.hairline, speed, label = "tileRim")
+    val scale by androidx.compose.animation.core.animateFloatAsState(if (press.on) PRESS_SCALE else 1f, androidx.compose.animation.core.tween(if (press.on) 60 else 200), label = "tileScale")
+    return this.graphicsLayer { scaleX = scale; scaleY = scale }.clip(SHAPE).background(bg).border(if (press.on) 2.dp else rimWidth, edge, SHAPE)
+        .clickable(interactionSource = press.source, indication = null, enabled = enabled, onClick = onClick)
+}
+
+/** The colour of what sits on a [tile]: its own at rest, paper on the ink fill while touched. */
+@Composable
+fun Press.tint(rest: Color, solid: Boolean = false): Color {
+    val p = LocalPalette.current
+    return if (on) p.paper else rest
+}
+
+/** The header row of every screen: fill, hairline under it, actions on the right. */
+@Composable
+fun TopBar(title: String, onBack: (() -> Unit)? = null, actions: @Composable RowScope.() -> Unit = {}) {
+    val p = LocalPalette.current
+    Row(
+        modifier = Modifier.fillMaxWidth().background(p.band).padding(horizontal = 6.dp).height(52.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (onBack != null) IconBtn(com.opensolr.notes.R.drawable.ic_back, onBack)
+        else Spacer(Modifier.width(10.dp))
+        Text(
+            title, style = MaterialTheme.typography.titleMedium, color = p.ink, maxLines = 1,
+            overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
+        )
+        actions()
+    }
+    Box(Modifier.fillMaxWidth().height(1.dp).background(p.hairline))
+}
+
+/** Top bar while items are selected: a check and the count in the accent, as in Opensolr Photos; a tap on either clears the selection. */
+@Composable
+fun SelectionBar(count: Int, onClear: () -> Unit, actions: @Composable RowScope.() -> Unit = {}) {
+    val p = LocalPalette.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    Row(
+        modifier = Modifier.fillMaxWidth().background(p.band).padding(horizontal = 6.dp).height(52.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            val press = rememberPress()
+            Row(
+                modifier = Modifier.padding(horizontal = 2.dp).height(40.dp).tile(press) { Haptics.tick(view, false); onClear() }.padding(horizontal = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(painterResource(com.opensolr.notes.R.drawable.ic_check), contentDescription = androidx.compose.ui.res.stringResource(com.opensolr.notes.R.string.cd_clear_selection), tint = press.tint(p.accent), modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(count.toString(), style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = press.tint(p.accent), maxLines = 1)
+            }
+        }
+        actions()
+    }
+    Box(Modifier.fillMaxWidth().height(1.dp).background(p.hairline))
+}
+
+/** A monochrome line icon on a bordered square button. */
+@Composable
+fun IconBtn(@DrawableRes icon: Int, onClick: () -> Unit, tint: Color? = null, enabled: Boolean = true, strong: Boolean = false, contentDescription: String? = null, modifier: Modifier? = null) {
+    val p = LocalPalette.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    val press = rememberPress()
+    Box(
+        // A bar that shares its width among its buttons passes its own size.
+        modifier = (modifier ?: Modifier.padding(2.dp).size(40.dp)).tile(press, enabled) {
+            if (strong) Haptics.tick(view, true) else Haptics.tap(view)
+            onClick()
+        },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(painterResource(icon), contentDescription = contentDescription, tint = press.tint(if (enabled) tint ?: p.ink else p.hairline), modifier = Modifier.size(if (modifier != null) 24.dp else 22.dp))
+    }
+}
+
+/** Filled accent button. */
+@Composable
+fun AccentButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, @DrawableRes icon: Int? = null) {
+    val p = LocalPalette.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    val press = rememberPress()
+    val fill = if (enabled) p.accentFill else p.hairline
+    Row(
+        modifier = modifier.heightIn(min = 46.dp).tile(press, enabled, fill = fill, rim = fill, solid = true) { Haptics.tick(view, true); onClick() }
+            .padding(horizontal = 18.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        if (icon != null) {
+            Icon(painterResource(icon), null, tint = press.tint(p.onAccentFill, solid = true), modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+        }
+        Text(text, style = MaterialTheme.typography.labelLarge, color = press.tint(p.onAccentFill, solid = true))
+    }
+}
+
+/** Bordered button on the quiet fill. */
+@Composable
+fun GhostButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, @DrawableRes icon: Int? = null) {
+    val p = LocalPalette.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    val press = rememberPress()
+    Row(
+        modifier = modifier.heightIn(min = 44.dp).tile(press) { Haptics.tap(view); onClick() }.padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        if (icon != null) {
+            Icon(painterResource(icon), null, tint = press.tint(p.ink), modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+        }
+        Text(text, style = MaterialTheme.typography.labelLarge, color = press.tint(p.ink))
+    }
+}
+
+/** An on/off chip for filters. */
+@Composable
+fun Chip(text: String, selected: Boolean, onClick: () -> Unit) {
+    val p = LocalPalette.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    val press = rememberPress()
+    Box(
+        modifier = Modifier.tile(press, fill = if (selected) p.accentFill else null, rim = if (selected) p.accentFill else null, solid = selected) { Haptics.tap(view); onClick() }
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+    ) {
+        Text(text, style = MaterialTheme.typography.labelSmall, color = press.tint(if (selected) p.onAccentFill else p.ink, solid = selected), maxLines = 1)
+    }
+}
+
+/** A single-line or multi-line text input on a bordered field. */
+@Composable
+fun Field(
+    value: String,
+    onChange: (String) -> Unit,
+    hint: String,
+    modifier: Modifier = Modifier,
+    singleLine: Boolean = true,
+    email: Boolean = false,
+    minHeight: Int = 44,
+    focus: androidx.compose.ui.focus.FocusRequester? = null,
+) {
+    val p = LocalPalette.current
+    Box(modifier = modifier.heightIn(min = minHeight.dp).padding(PaddingValues(horizontal = 12.dp, vertical = 11.dp))) {
+        if (value.isEmpty()) Text(hint, style = MaterialTheme.typography.bodyMedium, color = p.muted)
+        TextBox(
+            value = value, onValueChange = onChange, singleLine = singleLine,
+            textStyle = MaterialTheme.typography.bodyMedium.copy(color = p.ink),
+            cursorBrush = SolidColor(p.accent),
+            keyboardOptions = textKeyboard(email),
+            modifier = Modifier.fillMaxWidth().then(if (focus != null) Modifier.focusRequester(focus) else Modifier),
+        )
+    }
+}
+
+/** Addresses get the email keyboard; everything else starts sentences with a capital and is autocorrected, as usual. */
+fun textKeyboard(email: Boolean): KeyboardOptions =
+    if (email) KeyboardOptions(keyboardType = KeyboardType.Email)
+    else KeyboardOptions(capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences, keyboardType = KeyboardType.Text)
+
+/** The message being written: its cursor set where the reader starts typing, its text at the reading size. */
+@Composable
+fun BodyField(
+    value: String,
+    onChange: (String) -> Unit,
+    hint: String,
+    textScale: Float,
+    modifier: Modifier = Modifier,
+    focus: androidx.compose.ui.focus.FocusRequester? = null,
+    minHeight: Int = 320,
+) {
+    val p = LocalPalette.current
+    val style = MaterialTheme.typography.bodyMedium.let { it.copy(color = p.ink, fontSize = it.fontSize * textScale, lineHeight = it.lineHeight * textScale) }
+    Box(modifier = modifier.heightIn(min = minHeight.dp).padding(PaddingValues(horizontal = 12.dp, vertical = 11.dp))) {
+        if (value.isEmpty()) Text(hint, style = style.copy(color = p.muted))
+        TextBox(
+            value = value, onValueChange = onChange, cursorAtStart = true,
+            textStyle = style,
+            cursorBrush = SolidColor(p.accent),
+            keyboardOptions = textKeyboard(false),
+            modifier = Modifier.fillMaxWidth().then(if (focus != null) Modifier.focusRequester(focus) else Modifier),
+        )
+    }
+}
+
+@Composable
+fun Hairline() {
+    Box(Modifier.fillMaxWidth().height(1.dp).background(LocalPalette.current.hairline))
+}
+
+@Composable
+fun SectionLabel(text: String) {
+    val p = LocalPalette.current
+    Text(
+        text.uppercase(), style = MaterialTheme.typography.labelMedium, color = p.muted,
+        modifier = Modifier.fillMaxWidth().background(p.paper).padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 6.dp),
+    )
+}
+
+/** Solr highlight fragments: <em> becomes bold, every other tag goes. */
+fun highlighted(fragment: String) = buildAnnotatedString {
+    // The markers are set aside first, so a literal "<https://...>" in the mail text is kept and never eats one.
+    val clean = fragment.replace("<em>", EM_OPEN).replace("</em>", EM_CLOSE)
+        .replace(HTML_TAG, "")
+        .replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&").replace("&quot;", "\"").replace("&#39;", "'")
+    var i = 0
+    while (i < clean.length) {
+        val s = clean.indexOf(EM_OPEN, i)
+        if (s < 0) { append(clean.substring(i).replace(EM_CLOSE, "")); break }
+        append(clean.substring(i, s).replace(EM_CLOSE, ""))
+        val e = clean.indexOf(EM_CLOSE, s)
+        if (e < 0) { append(clean.substring(s + 1)); break }
+        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(clean.substring(s + 1, e).replace(EM_OPEN, "")) }
+        i = e + 1
+    }
+}
+
+private const val EM_OPEN = "\uE000"
+private const val EM_CLOSE = "\uE001"
+private val HTML_TAG = Regex("</?[A-Za-z][A-Za-z0-9-]*(\\s[^<>]*)?/?>")
+
+/** Every date the app shows: mm/dd/yyyy hh:mm:ss. */
+fun fmtDate(ms: Long): String = if (ms <= 0) "" else SimpleDateFormat("MM/dd/yyyy HH:mm:ss", Locale.US).format(Date(ms))
+
+fun fmtSize(bytes: Long): String = when {
+    bytes >= 1_048_576 -> String.format(Locale.US, "%.1f MB", bytes / 1_048_576.0)
+    bytes >= 1024 -> String.format(Locale.US, "%d KB", bytes / 1024)
+    else -> "$bytes B"
+}
+
+/** A zone of a settings-like screen, as in Opensolr Photos: tinted heading with a chevron, folded until tapped. */
+@Composable
+fun Zone(title: String, badge: Int, open: Boolean, onToggle: () -> Unit, content: @Composable () -> Unit) {
+    val p = LocalPalette.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 4.dp)
+                .background(p.accent.copy(alpha = 0.18f), SHAPE)
+                .clickable { Haptics.tick(view, strong = false); onToggle() }
+                .padding(start = 8.dp, end = 10.dp, top = 7.dp, bottom = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                if (open) androidx.compose.material.icons.Icons.Filled.KeyboardArrowDown else androidx.compose.material.icons.Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null, tint = p.accent, modifier = Modifier.size(22.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(title, style = MaterialTheme.typography.titleMedium.copy(fontSize = 19.sp), fontWeight = FontWeight.Bold, color = p.ink, modifier = Modifier.weight(1f))
+            if (badge > 0) {
+                Text(
+                    badge.toString(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = p.onAccentFill,
+                    modifier = Modifier.background(p.accentFill, SHAPE).padding(horizontal = 7.dp, vertical = 2.dp),
+                )
+            }
+        }
+        androidx.compose.animation.AnimatedVisibility(
+            visible = open,
+            enter = androidx.compose.animation.expandVertically(androidx.compose.animation.core.tween(220)) + androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(220)),
+            exit = androidx.compose.animation.shrinkVertically(androidx.compose.animation.core.tween(180)) + androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(140)),
+        ) {
+            androidx.compose.foundation.layout.Column {
+                Spacer(Modifier.height(10.dp))
+                content()
+                Spacer(Modifier.height(18.dp))
+            }
+        }
+    }
+}
+
+/** A section inside a zone: a lighter heading with its own chevron, folded until tapped, and remembered. */
+@Composable
+fun SubZone(title: String, open: Boolean, onToggle: () -> Unit, content: @Composable () -> Unit) {
+    val p = LocalPalette.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().clickable { Haptics.tick(view, strong = false); onToggle() }.padding(vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                if (open) androidx.compose.material.icons.Icons.Filled.KeyboardArrowDown else androidx.compose.material.icons.Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null, tint = p.accent, modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = p.ink)
+        }
+        androidx.compose.animation.AnimatedVisibility(
+            visible = open,
+            enter = androidx.compose.animation.expandVertically(androidx.compose.animation.core.tween(200)) + androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(200)),
+            exit = androidx.compose.animation.shrinkVertically(androidx.compose.animation.core.tween(160)) + androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(120)),
+        ) {
+            androidx.compose.foundation.layout.Column(Modifier.padding(start = 26.dp, bottom = 8.dp)) { content() }
+        }
+        Hairline()
+    }
+}
+
+/** A label and its value on one line, with a rule under it. */
+@Composable
+fun InfoRow(label: String, value: String) {
+    val p = LocalPalette.current
+    androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text(label, style = MaterialTheme.typography.bodyMedium, color = p.muted, modifier = Modifier.padding(end = 16.dp))
+            Text(value, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = p.ink, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        }
+        Hairline()
+    }
+}
+
+/** An accent-edged note: a warning or a status the reader has to see. */
+@Composable
+fun Notice(text: String, title: String? = null) {
+    val p = LocalPalette.current
+    Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min)) {
+        Box(Modifier.width(3.dp).fillMaxHeight().background(p.accent))
+        androidx.compose.foundation.layout.Column(Modifier.weight(1f).background(p.band).padding(horizontal = 16.dp, vertical = 14.dp)) {
+            if (title != null) {
+                Text(title, style = MaterialTheme.typography.titleSmall, color = p.ink)
+                Spacer(Modifier.height(4.dp))
+            }
+            Text(text, style = MaterialTheme.typography.bodyMedium, color = p.muted)
+        }
+    }
+}
+
+/** The big screen title with its back arrow, as in Opensolr Photos. */
+@Composable
+fun ScreenHeader(title: String, onBack: (() -> Unit)?) {
+    val p = LocalPalette.current
+    Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (onBack != null) IconBtn(com.opensolr.notes.R.drawable.ic_back, onBack)
+        Text(title, style = MaterialTheme.typography.headlineSmall, color = p.ink, modifier = Modifier.padding(start = if (onBack == null) 4.dp else 0.dp))
+    }
+}
+
+/**
+ * A conversation of several messages drawn as a stack of cards: the row itself framed by a thin border,
+ * and under it up to three sheets almost as wide, each a little narrower and darker, each with its own
+ * rim and a shaded bottom edge, so it reads as cards lying one on another. A single message is a plain row.
+ */
+@Composable
+fun StackCard(count: Int, fill: Color, content: @Composable () -> Unit) {
+    if (count < 2) {
+        androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().background(fill)) { content() }
+        return
+    }
+    val p = LocalPalette.current
+    val dark = p.paper.luminance() < 0.5f
+    val fills = if (dark) STACK_FILL_DARK else STACK_FILL_LIGHT
+    val rim = if (dark) Color(0xFF5A544C) else Color(0xFFB9AE9E)
+    val shade = if (dark) Color(0xFF0B0A09) else Color(0xFF9C907F)
+    val tiers = minOf(count - 1, 3)
+    androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().background(p.paper).padding(start = 6.dp, end = 6.dp, top = 5.dp, bottom = 3.dp)) {
+        Box(Modifier.fillMaxWidth().background(fill, SHAPE).border(1.dp, rim, SHAPE)) { content() }
+        androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(STACK_TIER * tiers + 2.dp)) {
+            val h = STACK_TIER.toPx()
+            val px = 1.dp.toPx()
+            for (i in 0 until tiers) {
+                val inset = STACK_STEP.toPx() * (i + 1)
+                val left = inset
+                val right = size.width - inset
+                if (right <= left) break
+                val bottom = (i + 1) * h
+                // The sheet shows below the one above it: its face, its sides and bottom rim, and a shade under it.
+                drawRect(fills[i], androidx.compose.ui.geometry.Offset(left, i * h), androidx.compose.ui.geometry.Size(right - left, h))
+                drawLine(rim, androidx.compose.ui.geometry.Offset(left + px / 2, i * h), androidx.compose.ui.geometry.Offset(left + px / 2, bottom), px)
+                drawLine(rim, androidx.compose.ui.geometry.Offset(right - px / 2, i * h), androidx.compose.ui.geometry.Offset(right - px / 2, bottom), px)
+                drawLine(rim, androidx.compose.ui.geometry.Offset(left, bottom - px / 2), androidx.compose.ui.geometry.Offset(right, bottom - px / 2), px)
+                drawLine(shade, androidx.compose.ui.geometry.Offset(left + px, bottom + px * 0.75f), androidx.compose.ui.geometry.Offset(right - px, bottom + px * 0.75f), px * 1.5f)
+            }
+        }
+    }
+}
+
+private val STACK_TIER = 4.dp
+private val STACK_STEP = 5.dp
+private val STACK_FILL_LIGHT = listOf(Color(0xFFEFE8DD), Color(0xFFE6DED1), Color(0xFFDCD3C5))
+private val STACK_FILL_DARK = listOf(Color(0xFF2B2824), Color(0xFF25221F), Color(0xFF1F1D1A))
+
+/** The number of messages of a conversation, on a small bordered tile like the other row badges. */
+@Composable
+fun CountBadge(count: Int) {
+    if (count < 2) return
+    val p = LocalPalette.current
+    Box(Modifier.padding(start = 6.dp).background(p.headFill, SHAPE).border(1.dp, p.headRim, SHAPE).padding(horizontal = 6.dp, vertical = 1.dp)) {
+        Text(count.toString(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = p.ink)
+    }
+}
+
+/** The flag of a flagged message, on a warm tile that stands out more than the attachment badge. */
+@Composable
+fun FlagBadge() {
+    val p = LocalPalette.current
+    Box(
+        Modifier.padding(start = 6.dp).background(p.flagTile, SHAPE).border(1.dp, p.flagRim, SHAPE).padding(horizontal = 5.dp, vertical = 2.dp),
+    ) {
+        Icon(painterResource(com.opensolr.notes.R.drawable.ic_flag), null, tint = p.flagMark, modifier = Modifier.size(13.dp))
+    }
+}
+
+/** The paperclip of a message with attachments, on a small tinted tile so it reads at a glance. */
+@Composable
+fun AttachBadge() {
+    val p = LocalPalette.current
+    Box(
+        Modifier.padding(start = 6.dp).background(p.accent.copy(alpha = 0.10f), SHAPE)
+            .border(1.dp, p.accent.copy(alpha = 0.30f), SHAPE).padding(horizontal = 5.dp, vertical = 2.dp),
+    ) {
+        Icon(painterResource(com.opensolr.notes.R.drawable.ic_attach), null, tint = p.accent, modifier = Modifier.size(13.dp))
+    }
+}
+
+/** One action of a [ToolRow]. */
+data class Tool(@DrawableRes val icon: Int, val label: String, val accent: Boolean = false, val active: Boolean = false, val enabled: Boolean = true, val strong: Boolean = false, val onClick: () -> Unit)
+
+/** Actions as the Opensolr Photos header: a row of small icons with a short label under each. */
+@Composable
+fun ToolRow(tools: List<Tool>, modifier: Modifier = Modifier) {
+    val p = LocalPalette.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    // Tiles of a row share one height; a label that does not fit on one line takes two, never cut.
+    Row(modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        // A short row keeps small tiles, a quarter of the width each, instead of stretching them.
+        tools.forEach { t ->
+            val press = rememberPress()
+            val tint = press.tint(when {
+                !t.enabled -> p.hairline
+                t.accent || t.active -> p.accent
+                else -> p.ink
+            })
+            Column(
+                Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .tile(press, t.enabled, rim = if (t.accent || t.active) p.accent else null) { if (t.strong) Haptics.tick(view, true) else Haptics.tap(view); t.onClick() }
+                    .padding(vertical = 6.dp, horizontal = 2.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Icon(painterResource(t.icon), contentDescription = t.label, tint = tint, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    t.label, fontSize = 10.sp, lineHeight = 12.sp, fontWeight = FontWeight.SemiBold, color = tint,
+                    maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
+        }
+        if (tools.size < 3) Spacer(Modifier.weight((4 - tools.size).toFloat()))
+    }
+}
+
+/** A dialog's button, bordered like every other: [accent] for the action, [heavy] when it cannot be taken back. */
+@Composable
+fun DialogButton(text: String, onClick: () -> Unit, accent: Boolean = false, strong: Boolean = false, heavy: Boolean = false, enabled: Boolean = true) {
+    val p = LocalPalette.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    val press = rememberPress()
+    Box(
+        Modifier.padding(start = 6.dp).heightIn(min = 40.dp).tile(press, enabled, rim = if (accent && enabled) p.accent else null) {
+            if (heavy) Haptics.heavy(view) else Haptics.tick(view, strong || accent)
+            onClick()
+        }.padding(horizontal = 14.dp, vertical = 9.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text, style = MaterialTheme.typography.labelLarge, fontWeight = if (accent) FontWeight.Bold else FontWeight.SemiBold,
+            color = press.tint(if (!enabled) p.hairline else if (accent) p.accent else p.ink),
+        )
+    }
+}
+
+/** Asks before an action that cannot be taken back: what it does, Cancel, and the action in the accent. */
+@Composable
+fun ConfirmDialog(title: String, text: String, action: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    val p = LocalPalette.current
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(text) },
+        confirmButton = { DialogButton(action, onConfirm, accent = true, heavy = true) },
+        dismissButton = { DialogButton(androidx.compose.ui.res.stringResource(com.opensolr.notes.R.string.cancel), onDismiss) },
+        containerColor = p.paper,
+        titleContentColor = p.ink,
+        textContentColor = p.muted,
+    )
+}
+
+/** The mark of an unread message: a filled accent dot. */
+@Composable
+fun UnreadDot(size: androidx.compose.ui.unit.Dp = 10.dp) {
+    Box(Modifier.size(size).background(LocalPalette.current.accent, androidx.compose.foundation.shape.CircleShape))
+}
+
+/** True when the dark palette is on: the list colours below are picked for each theme. */
+@Composable
+private fun darkList(): Boolean = LocalPalette.current.ink.luminance() > 0.5f
+
+/** The sender of a row in a mail list: black (white in the dark theme) and bold, the strongest line of the row. */
+@Composable
+fun listSenderStyle(unread: Boolean): androidx.compose.ui.text.TextStyle = MaterialTheme.typography.bodyMedium.copy(
+    fontSize = 15.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold,
+    color = if (darkList()) Color(0xFFFFFFFF) else Color(0xFF000000),
+)
+
+/** The subject of a row in a mail list: a clear grey, darker and semibold when unread, medium once read. */
+@Composable
+fun listSubjectStyle(unread: Boolean): androidx.compose.ui.text.TextStyle = MaterialTheme.typography.bodyMedium.copy(
+    fontSize = 14.sp, lineHeight = 18.sp, fontWeight = if (unread) FontWeight.SemiBold else FontWeight.Medium,
+    color = if (darkList()) Color(if (unread) 0xFFD6D6D6 else 0xFFB0B0B0) else Color(if (unread) 0xFF3A3A3A else 0xFF6A6A6A),
+)
+
+/** The lines of the message body in a mail list: last, plain weight, a light grey. */
+@Composable
+fun listBodyStyle(): androidx.compose.ui.text.TextStyle = MaterialTheme.typography.bodySmall.copy(
+    fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Normal,
+    color = if (darkList()) Color(0xFF7E7E7E) else Color(0xFF9A9A9A),
+)
+
+/** The background of an unread row: a clear accent wash over the page, in both themes. */
+@Composable
+fun unreadFill(): Color = LocalPalette.current.accent.copy(alpha = 0.10f).compositeOver(LocalPalette.current.paper)
