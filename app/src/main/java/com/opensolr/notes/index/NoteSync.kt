@@ -70,7 +70,7 @@ class NoteSync(private val context: Context) {
 
     /** Two words from the AI that say what the note is about. */
     private suspend fun categoryOf(indexName: String, note: Note): String? {
-        val sample = NoteText.cut((note.title + "\n" + note.text).trim(), 2000)
+        val sample = NoteText.cut((note.title + "\n" + NoteText.plain(note.text)).trim(), 2000)
         val answer = try {
             api.aiAnswer(indexName, CATEGORY_PROMPT + sample)
         } catch (e: VectorNotAllowedException) {
@@ -99,7 +99,7 @@ class NoteSync(private val context: Context) {
             .put("source_s", "opensolr-notes")
         if (prefs.vectorAllowed) {
             try {
-                val vec = api.batchEmbed(indexName, listOf(NoteText.cut((title + "\n" + n.text).trim(), 6000))).firstOrNull()
+                val vec = api.batchEmbed(indexName, listOf(NoteText.cut((title + "\n" + NoteText.plain(n.text)).trim(), 6000))).firstOrNull()
                 if (vec != null) doc.put("embeddings", JSONArray().apply { vec.forEach { put(it.toDouble()) } })
             } catch (e: VectorNotAllowedException) {
                 prefs.vectorAllowed = false

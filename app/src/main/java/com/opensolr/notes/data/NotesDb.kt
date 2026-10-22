@@ -140,8 +140,12 @@ class NotesDb(context: Context) : SQLiteOpenHelper(context.applicationContext, "
 /** What the index gets when the writer gave no title: the first sentence, and the first two as the description. */
 object NoteText {
     private val sentenceEnd = Regex("(?<=[.!?])\\s+|\\n+")
+    private val marks = Regex("</?[biu]>")
 
-    fun sentences(text: String): List<String> = text.trim().split(sentenceEnd).map { it.trim() }.filter { it.isNotEmpty() }
+    /** The note without its <b>, <i>, <u> marks. */
+    fun plain(text: String): String = marks.replace(text, "")
+
+    fun sentences(text: String): List<String> = plain(text).trim().split(sentenceEnd).map { it.trim() }.filter { it.isNotEmpty() }
 
     fun titleOf(text: String): String = cut(sentences(text).firstOrNull().orEmpty(), 250)
 
