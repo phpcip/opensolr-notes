@@ -74,6 +74,7 @@ fun NotesScreen(vm: AppViewModel) {
         Hairline()
         if (showFilters) FilterRow(vm)
         vm.problem?.let { Notice(it); Hairline() }
+        vm.indexChoices?.let { IndexChoice(it, vm) }
         val found = if (vm.hits != null) vm.found() else null
         if (found != null) {
             if (found.isEmpty() && !vm.searching) Empty(stringResource(R.string.no_results))
@@ -155,4 +156,22 @@ private fun NoteRow(note: Note, snippet: String?, onOpen: () -> Unit) {
 private fun Empty(text: String) {
     val p = LocalPalette.current
     Text(text, style = MaterialTheme.typography.bodyMedium, color = p.muted, modifier = Modifier.padding(24.dp))
+}
+
+/** Another phone of the account already has a notes index: share it, or start this phone's own. */
+@Composable
+private fun IndexChoice(choices: List<String>, vm: AppViewModel) {
+    val p = LocalPalette.current
+    Column(Modifier.fillMaxWidth().background(p.band).padding(16.dp)) {
+        Text(stringResource(R.string.index_choice_title), style = MaterialTheme.typography.titleSmall, color = p.ink)
+        Spacer(Modifier.height(4.dp))
+        Text(stringResource(R.string.index_choice_text), style = MaterialTheme.typography.bodySmall, color = p.muted)
+        Spacer(Modifier.height(10.dp))
+        choices.forEach { name ->
+            com.opensolr.notes.ui.GhostButton(name.removePrefix("notes_").removeSuffix("__dense"), onClick = { vm.chooseIndex(name) }, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(6.dp))
+        }
+        com.opensolr.notes.ui.AccentButton(stringResource(R.string.index_choice_new), onClick = { vm.chooseIndex(null) }, modifier = Modifier.fillMaxWidth())
+    }
+    Hairline()
 }

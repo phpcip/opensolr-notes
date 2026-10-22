@@ -3,30 +3,41 @@ package com.opensolr.notes.index
 import android.content.Context
 import com.opensolr.notes.data.AppPrefs
 import com.opensolr.notes.net.IndexConnection
+import com.opensolr.notes.net.IndexChoiceException
 import com.opensolr.notes.net.IndexMissingException
 import com.opensolr.notes.net.OpensolrApi
 import com.opensolr.notes.net.ServiceException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.security.MessageDigest
 
 /**
- * The account's notes index: notes_<hash of the email>__dense, one per account so every phone signed in
- * sees the same notes. Made with the platform's web crawler configuration, which is what the hosted
- * search page at search.opensolr.com/<index> expects; that page is put behind the index's own password.
+ * The notes index of this phone, as Opensolr Photos and Mail have theirs: notes_<device id>__dense, or one
+ * made by another phone of the account that the reader chose to share. Made with the platform's web crawler
+ * configuration, which is what the hosted search page at search.opensolr.com/<index> expects; that page is
+ * put behind the index's own password.
  */
 class NotesIndex(context: Context) {
 
     private val prefs = AppPrefs(context)
     private val api = OpensolrApi(prefs)
 
-    val name: String get() = "notes_" + hash(prefs.email.trim().lowercase()).substring(0, 16) + "__dense"
+    /** notes_<device id>__dense: the index this phone makes for itself. */
+    val ownName: String get() = "notes_" + prefs.installId + "__dense"
+
+    /** The index this phone writes to: the one chosen, else its own. */
+    val name: String get() = prefs.chosenIndex ?: ownName
 
     suspend fun ensure(): IndexConnection = lock.withLock {
         val name = name
         IndexConnection.fromJson(prefs.connectionJson)?.takeIf { it.indexName == name && verified == name }?.let { return@withLock it }
-        val exists = api.indexNames().contains(name)
+        val all = api.indexNames()
+        val exists = all.contains(name)
+        if (!exists && prefs.chosenIndex == null) {
+            // Another phone's notes index can be shared instead of starting an empty one; the reader decides.
+            val others = all.filter { NOTES.matches(it) && it != name }
+            if (others.isNotEmpty()) throw IndexChoiceException(others)
+        }
         if (!exists) {
             prefs.connectionJson = ""
             api.createIndex(name, region())
@@ -37,9 +48,16 @@ class NotesIndex(context: Context) {
             prefs.protectedIndex = name
         }
         prefs.indexName = name
+        prefs.chosenIndex = name
         prefs.connectionJson = connection.toJson()
         verified = name
         connection
+    }
+
+    /** The reader's answer: an existing index of the account, or null for this phone's own. */
+    fun choose(existing: String?) {
+        prefs.chosenIndex = existing ?: ownName
+        forget()
     }
 
     fun forget() {
@@ -81,9 +99,9 @@ class NotesIndex(context: Context) {
         throw last ?: ServiceException("The index is not reachable")
     }
 
-    private fun hash(s: String): String = MessageDigest.getInstance("SHA-256").digest(s.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
-
     companion object {
+        private val NOTES = Regex("^notes_[a-z0-9-]{1,64}__dense$")
+
         private val lock = Mutex()
 
         @Volatile

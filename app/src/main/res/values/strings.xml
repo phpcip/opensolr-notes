@@ -50,4 +50,7 @@
     <string name="update_available">Version %1$s is available</string>
     <string name="update_now">Update to %1$s</string>
     <string name="downloading">Downloading %1$d%%</string>
+    <string name="index_choice_title">Notes found on another phone</string>
+    <string name="index_choice_text">Your account already has a notes index from another phone. Share it, so both phones see the same notes, or start this phone\'s own.</string>
+    <string name="index_choice_new">Start this phone\'s own</string>
 </resources>

@@ -26,7 +26,7 @@ class AppPrefs(context: Context) {
     val hasDeviceKey: Boolean get() = sp.getBoolean(K_DEVICE_KEY, false)
 
     fun clearSession() {
-        sp.edit().remove(K_EMAIL).remove(K_KEY).remove(K_DEVICE_KEY).remove(K_CONN).remove(K_INDEX).apply()
+        sp.edit().remove(K_EMAIL).remove(K_KEY).remove(K_DEVICE_KEY).remove(K_CONN).remove(K_INDEX).remove(K_CHOSEN).apply()
     }
 
     /** This install's id, as Opensolr Photos and Mail have one: the key issued to it is revocable from Account > Devices. */
@@ -41,6 +41,11 @@ class AppPrefs(context: Context) {
         }
 
     val deviceIdCurrent: Boolean get() = sp.getBoolean(K_ID_CURRENT, false)
+
+    /** The index this phone writes to when it is not its own (one made by another phone of the account). */
+    var chosenIndex: String?
+        get() = sp.getString(K_CHOSEN, null)
+        set(v) = sp.edit().putString(K_CHOSEN, v).apply()
 
     var indexName: String
         get() = sp.getString(K_INDEX, "") ?: ""
@@ -109,6 +114,7 @@ class AppPrefs(context: Context) {
         private const val K_DEVICE_KEY = "device_key"
         private const val K_ID_CURRENT = "device_id_current"
         private const val K_INDEX = "index_name"
+        private const val K_CHOSEN = "chosen_index"
         private const val K_CONN = "index_conn"
         private const val K_VECTOR = "vector_allowed"
         private const val K_PROTECTED = "protected_index"

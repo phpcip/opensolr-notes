@@ -50,4 +50,7 @@
     <string name="update_available">Version %1$s ist verfügbar</string>
     <string name="update_now">Auf %1$s aktualisieren</string>
     <string name="downloading">Lädt %1$d%%</string>
+    <string name="index_choice_title">Notizen auf einem anderen Telefon</string>
+    <string name="index_choice_text">Dein Konto hat schon einen Notiz-Index von einem anderen Telefon. Teile ihn, damit beide dieselben Notizen sehen, oder beginne einen eigenen.</string>
+    <string name="index_choice_new">Eigenen beginnen</string>
 </resources>
