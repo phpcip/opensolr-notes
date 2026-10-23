@@ -103,6 +103,11 @@ fun NotesScreen(vm: AppViewModel) {
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+            // Words and meaning, or words only: the switch lights up when the search is by meaning
+            if (vm.prefs.vectorAllowed) {
+                var ai by remember { mutableStateOf(vm.prefs.aiSearch) }
+                IconBtn(R.drawable.ic_ai, { ai = !ai; vm.prefs.aiSearch = ai; if (vm.hits != null) vm.search() }, tint = if (ai) p.accent else p.muted)
+            }
             // Search runs on Enter or on the check; the X clears the box and the results
             if (vm.query.isNotEmpty()) IconBtn(R.drawable.ic_check, { vm.search() }, strong = true)
             if (vm.query.isNotEmpty()) IconBtn(R.drawable.ic_close, { vm.search("") })
@@ -161,6 +166,9 @@ fun NotesScreen(vm: AppViewModel) {
                         dragOffset += me.offset - target.offset + (if (dy > 0) (me.size - target.size) else 0)
                         Haptics.tick(view, false)
                         vm.move(id, target.key as String)
+                        // The list keeps its place by the key of its first row: a row moved above it would land out of
+                        // view at the top. Then the view is pinned to the index instead, so the moved row stays on screen.
+                        if (target.index == listState.firstVisibleItemIndex) listState.requestScrollToItem(target.index, listState.firstVisibleItemScrollOffset)
                     }
                     // Near the edge of the list, it scrolls along
                     val over = when {
@@ -168,7 +176,9 @@ fun NotesScreen(vm: AppViewModel) {
                         bottom > info.viewportEndOffset -> bottom - info.viewportEndOffset
                         else -> 0f
                     }
-                    if (over != 0f) scope.launch { listState.scrollBy(over.coerceIn(-40f, 40f)); dragOffset -= over.coerceIn(-40f, 40f) }
+                    // Only what the list really scrolled comes off the offset: at the top or bottom, where it cannot
+                    // scroll, the dragged row would otherwise drift off the screen.
+                    if (over != 0f) scope.launch { val done = listState.scrollBy(over.coerceIn(-40f, 40f)); dragOffset -= done }
                 }
                 // The scroller's map of the list: every note titled by the month it was written in
                 val notesIndex = remember(vm.notes) {

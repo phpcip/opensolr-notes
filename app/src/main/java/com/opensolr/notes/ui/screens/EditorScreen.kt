@@ -161,8 +161,6 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
         Column(Modifier.fillMaxSize()) {
             Field(value = title, onChange = { title = it }, hint = stringResource(R.string.title_hint), modifier = Modifier.fillMaxWidth())
             Hairline()
-            CategoryField(category, vm.categories, onChange = { category = it })
-            Hairline()
             // the app's own face at normal weight, so B stands out from it
             val mono = MaterialTheme.typography.bodyMedium.copy(color = p.ink, fontWeight = FontWeight.Thin, lineHeight = MaterialTheme.typography.bodyMedium.fontSize * 1.6f)
             var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
@@ -170,16 +168,20 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
             val scroll = rememberScrollState()
             var viewportH by remember { mutableStateOf(0) }
             val imeBottom = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)
-            // The line with the cursor stays in view, with three lines under it, when the keyboard comes up or the cursor moves
+            // The line with the cursor stays in view: three lines under it when the keyboard comes up, and when the cursor
+            // moves the text scrolls only if that line left the view, so a tap puts the cursor where the finger landed
+            var lastIme by remember { mutableStateOf(imeBottom) }
             LaunchedEffect(body.selection, imeBottom, viewportH, layout) {
                 val l = layout ?: return@LaunchedEffect
+                val keyboardMoved = imeBottom != lastIme
+                lastIme = imeBottom
                 if (viewportH <= 0 || l.lineCount == 0) return@LaunchedEffect
                 val (_, map) = Marks.render(body.text)
                 val at = map[body.selection.end.coerceIn(0, map.size - 1)].coerceIn(0, l.layoutInput.text.length)
                 val line = l.getLineForOffset(at)
                 val top = l.getLineTop(line); val bottom = l.getLineBottom(line)
                 val lineH = (bottom - top).coerceAtLeast(1f)
-                val wanted = bottom + 3 * lineH - viewportH
+                val wanted = bottom + (if (keyboardMoved) 3 * lineH else 0f) - viewportH
                 when {
                     wanted > scroll.value -> scroll.animateScrollTo(wanted.toInt().coerceIn(0, scroll.maxValue))
                     top < scroll.value -> scroll.animateScrollTo(top.toInt().coerceAtLeast(0))
@@ -224,6 +226,9 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
                         },
                 )
             }
+            Hairline()
+            // The category sits under the text, so it takes nothing from the writing space
+            CategoryField(category, vm.categories, onChange = { category = it })
             Hairline()
             if (existing != null) {
                 Text(stringResource(R.string.created_on, fmtDate(existing.createdAt)), style = MaterialTheme.typography.labelSmall, color = p.muted, modifier = Modifier.padding(12.dp))

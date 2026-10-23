@@ -247,9 +247,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (from < 0 || to < 0 || from == to) return
         ids.add(to, ids.removeAt(from))
         val byId = notes.associateBy { it.id }
+        // The list on screen is the order; no reload here, a drag moves many times a second and reloads landing
+        // out of turn put an older order back under the finger.
         db.setOrder(ids)
         notes = ids.map { byId.getValue(it) }
-        reload()
     }
 
     fun delete(id: String) {

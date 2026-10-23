@@ -219,7 +219,8 @@ fun BoxScope.FastScroller(state: LazyListState, index: ScrollIndex, minItems: In
         // swipe from the edge reaches the row. At the very top only the thumb takes it, leaving pull-to-refresh alone.
         // One gesture area whose shape changes, never a new one, so a drag in progress is never cut off.
         val thumbTop = travelPx * fraction
-        val strip = dragging || state.canScrollBackward
+        // Only the thumb itself takes the finger here: the rows keep their drag grip at the right edge for reordering
+        val strip = false
         val boxTop = if (strip) 0f else thumbTop
         val topNow by androidx.compose.runtime.rememberUpdatedState(boxTop)
         if (alpha > 0.05f || dragging) Box(
