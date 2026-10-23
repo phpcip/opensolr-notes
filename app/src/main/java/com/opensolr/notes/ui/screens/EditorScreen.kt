@@ -61,7 +61,6 @@ import com.opensolr.notes.ui.fmtDate
 import com.opensolr.notes.ui.hapticClickable
 import com.opensolr.notes.ui.textKeyboard
 import com.opensolr.notes.ui.theme.LocalPalette
-import com.opensolr.notes.ui.theme.NoteMono
 
 /**
  * One note: the text is what matters, the title is optional, the category comes from the AI or from you.
@@ -124,8 +123,8 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
             Hairline()
             CategoryField(category, vm.categories, onChange = { category = it })
             Hairline()
-            // the light cut on purpose: the regular JetBrains Mono reads as bold, and B must stand out from it
-            val mono = MaterialTheme.typography.bodyMedium.copy(color = p.ink, fontFamily = NoteMono, fontWeight = FontWeight.Light, lineHeight = MaterialTheme.typography.bodyMedium.fontSize * 1.6f)
+            // the app's own face at normal weight, so B stands out from it
+            val mono = MaterialTheme.typography.bodyMedium.copy(color = p.ink, fontWeight = FontWeight.Normal, lineHeight = MaterialTheme.typography.bodyMedium.fontSize * 1.6f)
             var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
             val multiTap = remember { MultiTap() }
             Box(Modifier.fillMaxWidth().heightIn(min = 260.dp).padding(horizontal = 12.dp, vertical = 11.dp)) {
