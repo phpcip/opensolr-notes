@@ -211,15 +211,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Signing out leaves nothing of the account on the phone: no notes, no index, no search, no session. */
     fun signOut() {
-        prefs.clearSession()
-        index.forget()
-        signedIn = false
-        screen = Screen.Setup
+        wipe()
     }
 
     private fun onSessionEnded() {
+        wipe()
+    }
+
+    private fun wipe() {
+        searchJob?.cancel()
+        db.clearAll()
+        prefs.clearSession()
+        prefs.clearAccountData()
         index.forget()
+        notes = emptyList()
+        categories = emptyList()
+        filters = Filters()
+        query = ""
+        hits = null
+        indexChoices = null
+        problem = null
         signedIn = false
         screen = Screen.Setup
     }

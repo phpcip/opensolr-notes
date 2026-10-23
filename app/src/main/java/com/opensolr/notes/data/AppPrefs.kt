@@ -29,6 +29,11 @@ class AppPrefs(context: Context) {
         sp.edit().remove(K_EMAIL).remove(K_KEY).remove(K_DEVICE_KEY).remove(K_CONN).remove(K_INDEX).remove(K_CHOSEN).apply()
     }
 
+    /** Everything remembered about the account's index and sync; the app's own settings (haptics, sections) stay. */
+    fun clearAccountData() {
+        sp.edit().remove(K_PROTECTED).remove("elevated_index").remove(K_PULL).remove(K_VECTOR).apply()
+    }
+
     /** This install's id, as Opensolr Photos and Mail have one: the key issued to it is revocable from Account > Devices. */
     val deviceId: String get() = "notes-$installId"
 
