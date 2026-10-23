@@ -65,6 +65,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 /** Every note, newest first; a search runs in the index; chips filter by category and by when the note was written. */
+@kotlin.OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun NotesScreen(vm: AppViewModel) {
     val p = LocalPalette.current
@@ -244,8 +245,8 @@ private fun SwipeRow(note: Note, onPin: () -> Unit, onDelete: () -> Unit, conten
     }
 }
 
-@androidx.compose.foundation.layout.ExperimentalLayoutApi
-@Composable
+@androidx.compose.runtime.Composable
+@kotlin.OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 private fun NoteRow(note: Note, snippet: String?, onOpen: () -> Unit, trailing: (@Composable () -> Unit)? = null) {
     val p = LocalPalette.current
     Row(Modifier.fillMaxWidth().hapticClickable(onClick = onOpen), verticalAlignment = Alignment.CenterVertically) {
