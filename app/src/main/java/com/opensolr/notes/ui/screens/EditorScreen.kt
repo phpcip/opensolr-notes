@@ -118,7 +118,8 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
         // The B / I / U row stays put under the top bar while the note scrolls.
         FormatRow(onTag = { mark(it) })
         Hairline()
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        // Title and category stay put; the text takes the rest of the screen and scrolls inside its own box
+        Column(Modifier.fillMaxSize()) {
             Field(value = title, onChange = { title = it }, hint = stringResource(R.string.title_hint), modifier = Modifier.fillMaxWidth())
             Hairline()
             CategoryField(category, vm.categories, onChange = { category = it })
@@ -127,7 +128,7 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
             val mono = MaterialTheme.typography.bodyMedium.copy(color = p.ink, fontWeight = FontWeight.Thin, lineHeight = MaterialTheme.typography.bodyMedium.fontSize * 1.6f)
             var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
             val multiTap = remember { MultiTap() }
-            Box(Modifier.fillMaxWidth().heightIn(min = 260.dp).padding(horizontal = 12.dp, vertical = 11.dp)) {
+            Box(Modifier.fillMaxWidth().weight(1f).padding(horizontal = 12.dp, vertical = 11.dp)) {
                 if (body.text.isEmpty()) Text(stringResource(R.string.text_hint), style = mono.copy(color = p.muted))
                 BasicTextField(
                     value = body, onValueChange = { body = it },
@@ -135,7 +136,7 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
                     visualTransformation = Marks.transformation,
                     onTextLayout = { layout = it },
                     keyboardOptions = textKeyboard(false),
-                    modifier = Modifier.fillMaxWidth().focusRequester(focus)
+                    modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).focusRequester(focus)
                         // double tap selects the word, triple tap the paragraph; seen after the field placed its cursor
                         .pointerInput(Unit) {
                             awaitEachGesture {
@@ -167,7 +168,6 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
             if (existing != null) {
                 Text(stringResource(R.string.created_on, fmtDate(existing.createdAt)), style = MaterialTheme.typography.labelSmall, color = p.muted, modifier = Modifier.padding(12.dp))
             }
-            Spacer(Modifier.height(40.dp))
         }
     }
     if (confirmDelete && existing != null) {
