@@ -90,7 +90,7 @@ fun SettingsScreen(vm: AppViewModel) {
                 Spacer(Modifier.height(12.dp))
                 GhostButton(
                     if (vm.checkingUpdate) stringResource(R.string.checking) else stringResource(R.string.check_for_updates),
-                    onClick = { vm.checkForUpdate(force = true) }, enabled = !vm.checkingUpdate, modifier = Modifier.fillMaxWidth(),
+                    onClick = { if (!vm.checkingUpdate) vm.checkForUpdate(force = true) }, modifier = Modifier.fillMaxWidth(),
                 )
                 if (vm.upToDate && vm.update == null) Text(stringResource(R.string.up_to_date), style = MaterialTheme.typography.bodySmall, color = p.muted, modifier = Modifier.padding(top = 6.dp))
                 if (vm.update == null) vm.updateError?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = p.muted, modifier = Modifier.padding(top = 6.dp)) }
