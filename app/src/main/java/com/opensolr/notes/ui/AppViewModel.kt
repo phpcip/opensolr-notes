@@ -139,6 +139,29 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Pinned notes stay at the top of this phone's list; nothing of it goes to the index. */
+    fun togglePin(id: String) {
+        val note = db.get(id) ?: return
+        db.setPinned(id, !note.pinned)
+        reload()
+    }
+
+    /** A note dragged to another place: this phone's order, kept across restarts, never sent to the index. */
+    fun move(fromId: String, toId: String) {
+        val ids = notes.map { it.id }.toMutableList()
+        val from = ids.indexOf(fromId); val to = ids.indexOf(toId)
+        if (from < 0 || to < 0 || from == to) return
+        ids.add(to, ids.removeAt(from))
+        val byId = notes.associateBy { it.id }
+        // a note dragged across the pinned line takes the side it landed on
+        val moved = byId.getValue(fromId)
+        val neighbour = byId.getValue(toId)
+        if (moved.pinned != neighbour.pinned) db.setPinned(fromId, neighbour.pinned)
+        db.setOrder(ids)
+        notes = ids.map { id -> if (id == fromId) moved.copy(pinned = neighbour.pinned) else byId.getValue(id) }
+        reload()
+    }
+
     fun delete(id: String) {
         busy = true
         viewModelScope.launch {

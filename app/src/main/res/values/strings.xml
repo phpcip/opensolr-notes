@@ -54,4 +54,7 @@
     <string name="index_choice_text">Your account already has a notes index from another phone. Share it, so both phones see the same notes, or start this phone\'s own.</string>
     <string name="index_choice_new">Start this phone\'s own</string>
     <string name="index_security">Index password and security</string>
+    <string name="pin">Pin</string>
+    <string name="unpin">Unpin</string>
+    <string name="pinned">Pinned</string>
 </resources>

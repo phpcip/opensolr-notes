@@ -54,4 +54,7 @@
     <string name="index_choice_text">Ton compte a déjà un index de notes venant d’un autre téléphone. Partage-le pour voir les mêmes notes partout, ou commence le tien.</string>
     <string name="index_choice_new">Commencer le mien</string>
     <string name="index_security">Mot de passe et sécurité de l’index</string>
+    <string name="pin">Épingler</string>
+    <string name="unpin">Détacher</string>
+    <string name="pinned">Épinglée</string>
 </resources>

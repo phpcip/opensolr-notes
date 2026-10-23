@@ -14,6 +14,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.zIndex
+import com.opensolr.notes.ui.ConfirmDialog
+import com.opensolr.notes.ui.Haptics
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
@@ -53,6 +64,7 @@ import java.time.ZoneId
 @Composable
 fun NotesScreen(vm: AppViewModel) {
     val p = LocalPalette.current
+    val view = LocalView.current
     var showFilters by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
         TopBar(stringResource(R.string.app_name)) {
@@ -87,9 +99,53 @@ fun NotesScreen(vm: AppViewModel) {
                     items(found, key = { it.first.id }) { (note, snippet) -> NoteRow(note, snippet) { vm.open(note.id) } }
                 }
             } else {
-                LazyColumn(Modifier.fillMaxSize()) {
+                // Swipe right pins (or unpins) a note, swipe left deletes it after a confirmation; a long press drags it
+                // to another place. Pins and order live on this phone only.
+                var confirmDelete by remember { mutableStateOf<String?>(null) }
+                val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+                var dragging by remember { mutableStateOf<String?>(null) }
+                var dragOffset by remember { mutableStateOf(0f) }
+                LazyColumn(Modifier.fillMaxSize(), state = listState) {
                     if (vm.notes.isEmpty()) item { Empty(stringResource(R.string.no_notes)) }
-                    items(vm.notes, key = { it.id }) { note -> NoteRow(note, null) { vm.open(note.id) } }
+                    items(vm.notes, key = { it.id }) { note ->
+                        val isDragged = dragging == note.id
+                        Box(
+                            Modifier
+                                .zIndex(if (isDragged) 1f else 0f)
+                                .graphicsLayer { translationY = if (isDragged) dragOffset else 0f }
+                                .pointerInput(note.id) {
+                                    detectDragGesturesAfterLongPress(
+                                        onDragStart = { dragging = note.id; dragOffset = 0f; Haptics.tick(view, true) },
+                                        onDragEnd = { dragging = null; dragOffset = 0f },
+                                        onDragCancel = { dragging = null; dragOffset = 0f },
+                                        onDrag = { change, amount ->
+                                            change.consume()
+                                            dragOffset += amount.y
+                                            val info = listState.layoutInfo.visibleItemsInfo
+                                            val me = info.firstOrNull { it.key == note.id } ?: return@detectDragGesturesAfterLongPress
+                                            val centre = me.offset + dragOffset + me.size / 2f
+                                            val over = info.firstOrNull { it.key != note.id && centre > it.offset && centre < it.offset + it.size }
+                                            if (over != null && over.key is String) {
+                                                dragOffset -= (over.offset - me.offset)
+                                                vm.move(note.id, over.key as String)
+                                            }
+                                        },
+                                    )
+                                },
+                        ) {
+                            SwipeRow(
+                                note = note,
+                                onPin = { vm.togglePin(note.id) },
+                                onDelete = { confirmDelete = note.id },
+                            ) { NoteRow(note, null) { vm.open(note.id) } }
+                        }
+                    }
+                }
+                confirmDelete?.let { id ->
+                    ConfirmDialog(
+                        title = stringResource(R.string.delete_note_q), text = stringResource(R.string.delete_note_text), action = stringResource(R.string.delete),
+                        onDismiss = { confirmDelete = null }, onConfirm = { confirmDelete = null; vm.delete(id) },
+                    )
                 }
             }
         }
@@ -123,6 +179,43 @@ private fun FilterRow(vm: AppViewModel) {
     }
 }
 
+/** The row with its swipe actions: to the right, pin or unpin (orange); to the left, delete (asks first). */
+@Composable
+private fun SwipeRow(note: Note, onPin: () -> Unit, onDelete: () -> Unit, content: @Composable () -> Unit) {
+    val p = LocalPalette.current
+    val view = LocalView.current
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            when (value) {
+                SwipeToDismissBoxValue.StartToEnd -> { Haptics.tick(view, true); onPin() }
+                SwipeToDismissBoxValue.EndToStart -> { Haptics.tick(view, true); onDelete() }
+                else -> {}
+            }
+            // the row always springs back: the pin shows in the row, the delete waits for the dialog
+            false
+        },
+        positionalThreshold = { it * 0.35f },
+    )
+    SwipeToDismissBox(
+        state = state,
+        backgroundContent = {
+            val toRight = state.dismissDirection == SwipeToDismissBoxValue.StartToEnd
+            Row(
+                Modifier.fillMaxSize().background(if (toRight) p.accent else p.ink).padding(horizontal = 20.dp),
+                horizontalArrangement = if (toRight) Arrangement.Start else Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    if (toRight) stringResource(if (note.pinned) R.string.unpin else R.string.pin) else stringResource(R.string.delete),
+                    style = MaterialTheme.typography.labelLarge, color = p.paper,
+                )
+            }
+        },
+    ) {
+        Box(Modifier.background(p.paper)) { content() }
+    }
+}
+
 @Composable
 private fun NoteRow(note: Note, snippet: String?, onOpen: () -> Unit) {
     val p = LocalPalette.current
@@ -137,6 +230,10 @@ private fun NoteRow(note: Note, snippet: String?, onOpen: () -> Unit) {
         }
         Spacer(Modifier.height(5.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
+            if (note.pinned) {
+                Text(stringResource(R.string.pinned), style = MaterialTheme.typography.labelSmall, color = p.accent)
+                Spacer(Modifier.width(10.dp))
+            }
             Text(fmtDate(note.createdAt), style = MaterialTheme.typography.labelSmall, color = p.muted)
             if (note.category.isNotBlank()) {
                 Spacer(Modifier.width(10.dp))

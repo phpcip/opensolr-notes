@@ -15,13 +15,17 @@ data class Note(
     val updatedAt: Long,
     val synced: Boolean,
     val deleted: Boolean,
+    /** Kept at the top of the list on this phone. */
+    val pinned: Boolean = false,
+    /** The place in this phone's own order; 0 = by date. */
+    val position: Int = 0,
 ) {
     /** The title shown: the one given, else the first sentence of the text. */
     val shownTitle: String get() = title.ifBlank { NoteText.titleOf(text) }
 }
 
 /** The notes on this phone: every note the account has, written here first and sent to the index after. */
-class NotesDb(context: Context) : SQLiteOpenHelper(context.applicationContext, "notes.db", null, 1) {
+class NotesDb(context: Context) : SQLiteOpenHelper(context.applicationContext, "notes.db", null, 2) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -33,14 +37,22 @@ class NotesDb(context: Context) : SQLiteOpenHelper(context.applicationContext, "
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL,
                 synced INTEGER NOT NULL DEFAULT 0,
-                deleted INTEGER NOT NULL DEFAULT 0
+                deleted INTEGER NOT NULL DEFAULT 0,
+                pinned INTEGER NOT NULL DEFAULT 0,
+                position INTEGER NOT NULL DEFAULT 0
             )"""
         )
         db.execSQL("CREATE INDEX note_created ON note(deleted, created_at DESC)")
         db.execSQL("CREATE INDEX note_synced ON note(synced)")
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        // 2: the phone's own order and pins
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE note ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE note ADD COLUMN position INTEGER NOT NULL DEFAULT 0")
+        }
+    }
 
     fun all(category: String? = null, from: Long? = null, to: Long? = null): List<Note> {
         val where = StringBuilder("deleted = 0")
@@ -48,8 +60,27 @@ class NotesDb(context: Context) : SQLiteOpenHelper(context.applicationContext, "
         if (!category.isNullOrEmpty()) { where.append(" AND category = ?"); args.add(category) }
         if (from != null) { where.append(" AND created_at >= ?"); args.add(from.toString()) }
         if (to != null) { where.append(" AND created_at <= ?"); args.add(to.toString()) }
-        return readableDatabase.query("note", null, where.toString(), args.toTypedArray(), null, null, "created_at DESC").use { c ->
+        return readableDatabase.query("note", null, where.toString(), args.toTypedArray(), null, null, ORDER_SQL).use { c ->
             buildList { while (c.moveToNext()) add(read(c)) }
+        }
+    }
+
+    /** Pinned first; new notes (no place yet) newest first; then the phone's own order. */
+    private val ORDER_SQL = "pinned DESC, CASE WHEN position > 0 THEN 1 ELSE 0 END, position ASC, created_at DESC"
+
+    fun setPinned(id: String, pinned: Boolean) {
+        writableDatabase.update("note", ContentValues().apply { put("pinned", if (pinned) 1 else 0) }, "id = ?", arrayOf(id))
+    }
+
+    /** The phone's order of all its notes, as listed: every note gets its place, so a later move keeps the rest where they are. */
+    fun setOrder(ids: List<String>) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            ids.forEachIndexed { i, id -> db.execSQL("UPDATE note SET position = ? WHERE id = ?", arrayOf(i + 1, id)) }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
         }
     }
 
@@ -88,6 +119,8 @@ class NotesDb(context: Context) : SQLiteOpenHelper(context.applicationContext, "
             updatedAt = now,
             synced = false,
             deleted = false,
+            pinned = existing?.pinned ?: false,
+            position = existing?.position ?: 0,
         )
         writableDatabase.insertWithOnConflict("note", null, values(note), SQLiteDatabase.CONFLICT_REPLACE)
         return note
@@ -113,7 +146,7 @@ class NotesDb(context: Context) : SQLiteOpenHelper(context.applicationContext, "
     fun upsertFromIndex(note: Note) {
         val local = get(note.id)
         if (local != null && (local.updatedAt >= note.updatedAt || !local.synced)) return
-        writableDatabase.insertWithOnConflict("note", null, values(note.copy(synced = true, deleted = false)), SQLiteDatabase.CONFLICT_REPLACE)
+        writableDatabase.insertWithOnConflict("note", null, values(note.copy(synced = true, deleted = false, pinned = local?.pinned ?: false, position = local?.position ?: 0)), SQLiteDatabase.CONFLICT_REPLACE)
     }
 
     fun clearAll() {
@@ -123,6 +156,7 @@ class NotesDb(context: Context) : SQLiteOpenHelper(context.applicationContext, "
     private fun values(n: Note) = ContentValues().apply {
         put("id", n.id); put("title", n.title); put("text", n.text); put("category", n.category)
         put("created_at", n.createdAt); put("updated_at", n.updatedAt); put("synced", if (n.synced) 1 else 0); put("deleted", if (n.deleted) 1 else 0)
+        put("pinned", if (n.pinned) 1 else 0); put("position", n.position)
     }
 
     private fun read(c: android.database.Cursor) = Note(
@@ -134,6 +168,8 @@ class NotesDb(context: Context) : SQLiteOpenHelper(context.applicationContext, "
         updatedAt = c.getLong(c.getColumnIndexOrThrow("updated_at")),
         synced = c.getInt(c.getColumnIndexOrThrow("synced")) == 1,
         deleted = c.getInt(c.getColumnIndexOrThrow("deleted")) == 1,
+        pinned = c.getInt(c.getColumnIndexOrThrow("pinned")) == 1,
+        position = c.getInt(c.getColumnIndexOrThrow("position")),
     )
 }
 
