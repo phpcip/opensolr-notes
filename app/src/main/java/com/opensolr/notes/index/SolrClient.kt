@@ -44,9 +44,10 @@ class SolrClient(connection: IndexConnection) {
         update(docs.toString(), commitWithinMs, "&failOnVersionConflicts=false")
     }
 
+    /** Deleted at once for searches too (soft commit), so the pull that follows cannot read the note back. */
     suspend fun deleteIds(ids: Collection<String>, commitWithinMs: Int = DEFAULT_COMMIT_MS) {
         if (ids.isEmpty()) return
-        update(JSONObject().put("delete", JSONArray(ids)).toString(), commitWithinMs)
+        update(JSONObject().put("delete", JSONArray(ids)).toString(), commitWithinMs, "&softCommit=true")
     }
 
     suspend fun deleteQuery(q: String, commitWithinMs: Int = DEFAULT_COMMIT_MS) = update(JSONObject().put("delete", JSONObject().put("query", q)).toString(), commitWithinMs)

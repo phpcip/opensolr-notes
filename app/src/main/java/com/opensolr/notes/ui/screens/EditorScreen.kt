@@ -38,7 +38,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
@@ -56,6 +55,7 @@ import com.opensolr.notes.ui.fmtDate
 import com.opensolr.notes.ui.hapticClickable
 import com.opensolr.notes.ui.textKeyboard
 import com.opensolr.notes.ui.theme.LocalPalette
+import com.opensolr.notes.ui.theme.NoteMono
 
 /**
  * One note: the text is what matters, the title is optional, the category comes from the AI or from you.
@@ -80,8 +80,9 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
     }
 
     /**
-     * B / I / U toggle: a selection inside a pair of that mark loses the pair, anything else gets wrapped.
-     * With no selection, an empty pair is opened and the cursor put inside, so what is typed next carries the mark.
+     * B / I / U: text outside a pair of that mark gets wrapped (no selection: an empty pair is opened and the cursor
+     * put inside, so what is typed next carries the mark). Inside a pair, the selection loses the mark and the rest of
+     * the run keeps it; a bare cursor inside a pair ends the run there, so what is typed next is plain.
      */
     fun mark(tag: String) {
         val v = body
@@ -89,12 +90,16 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
         val s = v.selection.min; val e = v.selection.max
         val open = "<$tag>"; val close = "</$tag>"
         // the pair the selection sits in, if any: the last open before it with no close in between, and the first close after it
-        val openAt = t.lastIndexOf(open, s - 1).takeIf { it >= 0 && t.indexOf(close, it) .let { c -> c < 0 || c >= s } }
+        val openAt = t.lastIndexOf(open, s - 1).takeIf { it >= 0 && t.indexOf(close, it).let { c -> c < 0 || c >= s } }
         val closeAt = if (openAt != null) t.indexOf(close, maxOf(e, openAt + open.length)) else -1
         body = if (openAt != null && closeAt >= 0) {
-            val inner = t.substring(openAt + open.length, closeAt)
-            val newText = t.substring(0, openAt) + inner + t.substring(closeAt + close.length)
-            TextFieldValue(newText, TextRange((s - open.length).coerceAtLeast(openAt), (e - open.length).coerceIn(openAt, openAt + inner.length)))
+            val before = t.substring(openAt + open.length, s)
+            val sel = t.substring(s, e)
+            val after = t.substring(e, closeAt)
+            val head = if (before.isEmpty()) "" else open + before + close
+            val tail = if (after.isEmpty()) "" else open + after + close
+            val at = openAt + head.length
+            TextFieldValue(t.substring(0, openAt) + head + sel + tail + t.substring(closeAt + close.length), TextRange(at, at + sel.length))
         } else {
             val inner = t.substring(s, e)
             TextFieldValue(t.substring(0, s) + open + inner + close + t.substring(e), TextRange(s + open.length, s + open.length + inner.length))
@@ -115,7 +120,7 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
             CategoryField(category, vm.categories, onChange = { category = it })
             Hairline()
             // normal weight on purpose: the app's body text is Medium, which reads as bold in a monospace face
-            val mono = MaterialTheme.typography.bodyMedium.copy(color = p.ink, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Normal, lineHeight = MaterialTheme.typography.bodyMedium.fontSize * 1.6f)
+            val mono = MaterialTheme.typography.bodyMedium.copy(color = p.ink, fontFamily = NoteMono, fontWeight = FontWeight.Normal, lineHeight = MaterialTheme.typography.bodyMedium.fontSize * 1.6f)
             Box(Modifier.fillMaxWidth().heightIn(min = 260.dp).padding(horizontal = 12.dp, vertical = 11.dp)) {
                 if (body.text.isEmpty()) Text(stringResource(R.string.text_hint), style = mono.copy(color = p.muted))
                 BasicTextField(

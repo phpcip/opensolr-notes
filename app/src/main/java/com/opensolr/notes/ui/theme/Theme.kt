@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.unit.dp
@@ -119,6 +120,14 @@ private val SpaceGrotesk = FontFamily(
     Font(R.font.space_grotesk_medium, FontWeight.Medium),
     Font(R.font.space_grotesk_semibold, FontWeight.SemiBold),
     Font(R.font.space_grotesk_bold, FontWeight.Bold),
+)
+
+/** JetBrains Mono, bundled (SIL Open Font License, see third_party/jetbrains-mono/OFL.txt): the note's text, with a real bold and italic. */
+val NoteMono = FontFamily(
+    Font(R.font.jetbrains_mono_regular, FontWeight.Normal),
+    Font(R.font.jetbrains_mono_italic, FontWeight.Normal, FontStyle.Italic),
+    Font(R.font.jetbrains_mono_bold, FontWeight.Bold),
+    Font(R.font.jetbrains_mono_bold_italic, FontWeight.Bold, FontStyle.Italic),
 )
 
 private fun style(size: Int, weight: FontWeight, line: Double = 1.4, tracking: Double = 0.0) = TextStyle(
