@@ -132,7 +132,7 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
 
 /** The category: a field with a dropdown of the categories in use (all of them on a tap, narrowed as you type); a tap on one fills it in. */
 @Composable
-fun CategoryField(value: String, categories: List<String>, onChange: (String) -> Unit) {
+fun CategoryField(value: String, categories: List<String>, onChange: (String) -> Unit, hint: String = stringResource(R.string.category_hint)) {
     val p = LocalPalette.current
     var focused by remember { mutableStateOf(false) }
     var dismissed by remember { mutableStateOf(false) }
@@ -145,7 +145,7 @@ fun CategoryField(value: String, categories: List<String>, onChange: (String) ->
     Column(Modifier.fillMaxWidth().background(p.band).padding(top = 8.dp)) {
         Text(stringResource(R.string.category), style = MaterialTheme.typography.labelMedium, color = p.muted, modifier = Modifier.padding(start = 12.dp))
         Box(Modifier.fillMaxWidth().onFocusChanged { focused = it.hasFocus; if (it.hasFocus) { dismissed = false; typed = false } }) {
-            Field(value = value, onChange = { onChange(it); dismissed = false; typed = true }, hint = stringResource(R.string.category_hint), modifier = Modifier.fillMaxWidth())
+            Field(value = value, onChange = { onChange(it); dismissed = false; typed = true }, hint = hint, modifier = Modifier.fillMaxWidth())
             DropdownMenu(expanded = focused && !dismissed && options.isNotEmpty(), onDismissRequest = { dismissed = true }, properties = androidx.compose.ui.window.PopupProperties(focusable = false)) {
                 options.forEach { c ->
                     DropdownMenuItem(text = { Text(c, color = p.ink) }, onClick = { onChange(c); dismissed = true })
