@@ -244,6 +244,7 @@ private fun SwipeRow(note: Note, onPin: () -> Unit, onDelete: () -> Unit, conten
     }
 }
 
+@androidx.compose.foundation.layout.ExperimentalLayoutApi
 @Composable
 private fun NoteRow(note: Note, snippet: String?, onOpen: () -> Unit, trailing: (@Composable () -> Unit)? = null) {
     val p = LocalPalette.current
@@ -258,7 +259,8 @@ private fun NoteRow(note: Note, snippet: String?, onOpen: () -> Unit, trailing: 
             if (body.isNotBlank()) Text(body, style = MaterialTheme.typography.bodySmall, color = p.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.height(5.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        // date, category and state: wrapped to a second line when the row is too narrow, never cut
+        androidx.compose.foundation.layout.FlowRow(verticalArrangement = Arrangement.Center) {
             if (note.pinned) {
                 Text(stringResource(R.string.pinned), style = MaterialTheme.typography.labelSmall, color = p.accent)
                 Spacer(Modifier.width(10.dp))
@@ -266,7 +268,7 @@ private fun NoteRow(note: Note, snippet: String?, onOpen: () -> Unit, trailing: 
             Text(fmtDate(note.createdAt), style = MaterialTheme.typography.labelSmall, color = p.muted)
             if (note.category.isNotBlank()) {
                 Spacer(Modifier.width(10.dp))
-                Text(note.category, style = MaterialTheme.typography.labelSmall, color = p.accent, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                Text(note.category, style = MaterialTheme.typography.labelSmall, color = p.accent, maxLines = 1, softWrap = false)
             }
             if (!note.synced) {
                 Spacer(Modifier.width(10.dp))
