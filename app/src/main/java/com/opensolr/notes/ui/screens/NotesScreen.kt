@@ -131,7 +131,7 @@ private fun FilterRow(vm: AppViewModel) {
 private fun NoteRow(note: Note, snippet: String?, onOpen: () -> Unit) {
     val p = LocalPalette.current
     Column(Modifier.fillMaxWidth().hapticClickable(onClick = onOpen).padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Text(note.shownTitle.ifBlank { stringResource(R.string.untitled) }, style = MaterialTheme.typography.titleSmall, color = p.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(com.opensolr.notes.ui.Marks.plainStyled(note.shownTitle.ifBlank { stringResource(R.string.untitled) }), style = MaterialTheme.typography.titleSmall, color = p.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.height(3.dp))
         if (!snippet.isNullOrBlank()) {
             Text(highlighted(snippet), style = MaterialTheme.typography.bodySmall, color = p.muted, maxLines = 3, overflow = TextOverflow.Ellipsis)
