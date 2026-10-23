@@ -49,6 +49,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.foundation.layout.ime
 import com.opensolr.notes.R
 import com.opensolr.notes.ui.AppViewModel
 import com.opensolr.notes.ui.ConfirmDialog
@@ -128,7 +130,25 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
             val mono = MaterialTheme.typography.bodyMedium.copy(color = p.ink, fontWeight = FontWeight.Thin, lineHeight = MaterialTheme.typography.bodyMedium.fontSize * 1.6f)
             var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
             val multiTap = remember { MultiTap() }
-            Box(Modifier.fillMaxWidth().weight(1f).padding(horizontal = 12.dp, vertical = 11.dp)) {
+            val scroll = rememberScrollState()
+            var viewportH by remember { mutableStateOf(0) }
+            val imeBottom = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)
+            // The line with the cursor stays in view, with three lines under it, when the keyboard comes up or the cursor moves
+            LaunchedEffect(body.selection, imeBottom, viewportH, layout) {
+                val l = layout ?: return@LaunchedEffect
+                if (viewportH <= 0 || l.lineCount == 0) return@LaunchedEffect
+                val (_, map) = Marks.render(body.text)
+                val at = map[body.selection.end.coerceIn(0, map.size - 1)].coerceIn(0, l.layoutInput.text.length)
+                val line = l.getLineForOffset(at)
+                val top = l.getLineTop(line); val bottom = l.getLineBottom(line)
+                val lineH = (bottom - top).coerceAtLeast(1f)
+                val wanted = bottom + 3 * lineH - viewportH
+                when {
+                    wanted > scroll.value -> scroll.animateScrollTo(wanted.toInt().coerceIn(0, scroll.maxValue))
+                    top < scroll.value -> scroll.animateScrollTo(top.toInt().coerceAtLeast(0))
+                }
+            }
+            Box(Modifier.fillMaxWidth().weight(1f).padding(horizontal = 12.dp, vertical = 11.dp).onSizeChanged { viewportH = it.height }) {
                 if (body.text.isEmpty()) Text(stringResource(R.string.text_hint), style = mono.copy(color = p.muted))
                 BasicTextField(
                     value = body, onValueChange = { body = it },
@@ -136,7 +156,7 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
                     visualTransformation = Marks.transformation,
                     onTextLayout = { layout = it },
                     keyboardOptions = textKeyboard(false),
-                    modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).focusRequester(focus)
+                    modifier = Modifier.fillMaxSize().verticalScroll(scroll).focusRequester(focus)
                         // double tap selects the word, triple tap the paragraph; seen after the field placed its cursor
                         .pointerInput(Unit) {
                             awaitEachGesture {
