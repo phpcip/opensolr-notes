@@ -137,6 +137,7 @@ fun CategoryField(value: String, categories: List<String>, onChange: (String) ->
     var focused by remember { mutableStateOf(false) }
     var dismissed by remember { mutableStateOf(false) }
     var typed by remember { mutableStateOf(false) }
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val q = value.trim()
     val options = remember(q, categories, typed) {
         val all = categories.filter { it != q }
@@ -148,7 +149,7 @@ fun CategoryField(value: String, categories: List<String>, onChange: (String) ->
             Field(value = value, onChange = { onChange(it); dismissed = false; typed = true }, hint = hint, modifier = Modifier.fillMaxWidth())
             DropdownMenu(expanded = focused && !dismissed && options.isNotEmpty(), onDismissRequest = { dismissed = true }, properties = androidx.compose.ui.window.PopupProperties(focusable = false)) {
                 options.forEach { c ->
-                    DropdownMenuItem(text = { Text(c, color = p.ink) }, onClick = { onChange(c); dismissed = true })
+                    DropdownMenuItem(text = { Text(c, color = p.ink) }, onClick = { onChange(c); dismissed = true; focusManager.clearFocus() })
                 }
             }
         }
