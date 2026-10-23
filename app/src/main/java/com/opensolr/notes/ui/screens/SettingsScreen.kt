@@ -62,6 +62,13 @@ fun SettingsScreen(vm: AppViewModel) {
                 Text(stringResource(R.string.search_page_hint), style = MaterialTheme.typography.bodySmall, color = p.muted, modifier = Modifier.padding(top = 6.dp))
                 Spacer(Modifier.height(12.dp))
             }
+            if (vm.prefs.indexName.isNotBlank()) {
+                // The index's Security section on opensolr.com: the HTTP user and password the search page asks for.
+                GhostButton(stringResource(R.string.index_security), onClick = {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://opensolr.com/admin/solr_manager/tools/" + vm.prefs.indexName + "#security")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                }, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(12.dp))
+            }
             GhostButton(stringResource(R.string.sync_now), onClick = { vm.syncNow() }, modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.height(12.dp))
             GhostButton(stringResource(R.string.sign_out), onClick = { confirmSignOut = true }, modifier = Modifier.fillMaxWidth())
