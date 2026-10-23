@@ -32,6 +32,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
@@ -145,9 +148,15 @@ fun CategoryField(value: String, categories: List<String>, onChange: (String) ->
     }
     Column(Modifier.fillMaxWidth().background(p.band).padding(top = 8.dp)) {
         Text(stringResource(R.string.category), style = MaterialTheme.typography.labelMedium, color = p.muted, modifier = Modifier.padding(start = 12.dp))
-        Box(Modifier.fillMaxWidth().onFocusChanged { focused = it.hasFocus; if (it.hasFocus) { dismissed = false; typed = false } }) {
+        Box(
+            Modifier.fillMaxWidth()
+                .onFocusChanged { focused = it.hasFocus; if (it.hasFocus) { dismissed = false; typed = false } }
+                // a tap on the field, focused already or not, opens the list again
+                .pointerInput(Unit) { awaitEachGesture { awaitFirstDown(requireUnconsumed = false); dismissed = false; typed = false } },
+        ) {
             Field(value = value, onChange = { onChange(it); dismissed = false; typed = true }, hint = hint, modifier = Modifier.fillMaxWidth())
-            DropdownMenu(expanded = focused && !dismissed && options.isNotEmpty(), onDismissRequest = { dismissed = true }, properties = androidx.compose.ui.window.PopupProperties(focusable = false)) {
+            // closed only by a pick or by leaving the field: the keyboard opening must not close it
+            DropdownMenu(expanded = focused && !dismissed && options.isNotEmpty(), onDismissRequest = {}, properties = androidx.compose.ui.window.PopupProperties(focusable = false)) {
                 options.forEachIndexed { i, c ->
                     if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(p.hairline))
                     DropdownMenuItem(text = { Text(c, color = p.ink) }, onClick = { onChange(c); dismissed = true; focusManager.clearFocus() })
