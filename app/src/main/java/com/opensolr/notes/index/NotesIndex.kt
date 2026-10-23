@@ -47,6 +47,10 @@ class NotesIndex(context: Context) {
             api.protectSearchPage(name, true)
             prefs.protectedIndex = name
         }
+        if (prefs.elevatedIndex != name) {
+            api.enableElevation(name)
+            prefs.elevatedIndex = name
+        }
         prefs.indexName = name
         prefs.chosenIndex = name
         prefs.connectionJson = connection.toJson()

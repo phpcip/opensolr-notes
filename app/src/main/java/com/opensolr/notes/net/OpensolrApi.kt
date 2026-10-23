@@ -110,6 +110,15 @@ class OpensolrApi(private val prefs: AppPrefs) {
         if (!json.optBoolean("status")) throw ServiceException(message(json.toString()))
     }
 
+    /** Pins and ordering on the hosted notes page need the index's elevation on. */
+    suspend fun enableElevation(name: String) = withContext(Dispatchers.IO) {
+        val json = obj(post(MANAGEMENT + "elevation_toggle", form {
+            add("core_name", name)
+            add("enable", "yes")
+        }))
+        if (!json.optBoolean("status")) throw ServiceException(message(json.toString()))
+    }
+
     // ---------- AI ----------
 
     /** One vector per text, or null for a text the embedder gave none for. */

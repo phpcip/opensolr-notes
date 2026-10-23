@@ -64,6 +64,11 @@ class AppPrefs(context: Context) {
         get() = sp.getString(K_PROTECTED, "") ?: ""
         set(v) = sp.edit().putString(K_PROTECTED, v).apply()
 
+    /** The index whose elevation (pins and ordering on the hosted page) has been switched on. */
+    var elevatedIndex: String
+        get() = sp.getString("elevated_index", "") ?: ""
+        set(v) = sp.edit().putString("elevated_index", v).apply()
+
     var lastPull: Long
         get() = sp.getLong(K_PULL, 0L)
         set(v) = sp.edit().putLong(K_PULL, v).apply()
