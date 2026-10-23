@@ -20,9 +20,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.res.painterResource
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
-import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
+import com.opensolr.notes.ui.Guard
+import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
@@ -207,33 +210,72 @@ private fun FilterRow(vm: AppViewModel) {
     }
 }
 
-/** The row with its swipe action: to the left, delete (asks first). */
+/**
+ * iPhone-style swipe to the left: the row stays put for the first stretch, then follows the finger over a red band.
+ * Two feedbacks on the way, a light one when the swipe is felt and a strong one when it is armed; only a release past
+ * the armed point asks to delete, anything less springs back and does nothing.
+ */
 @Composable
 private fun SwipeRow(note: Note, onDelete: () -> Unit, content: @Composable () -> Unit) {
+    androidx.compose.runtime.key(note.id) {
     val p = LocalPalette.current
     val view = LocalView.current
-    val state = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) { Haptics.tick(view, true); onDelete() }
-            // the row always springs back: the delete waits for the dialog
-            false
-        },
-        positionalThreshold = { it * 0.35f },
-    )
-    SwipeToDismissBox(
-        state = state,
-        enableDismissFromStartToEnd = false,
-        backgroundContent = {
-            Row(
-                Modifier.fillMaxSize().background(p.ink).padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(stringResource(R.string.delete), style = MaterialTheme.typography.labelLarge, color = p.paper)
-            }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val deleteNow by androidx.compose.runtime.rememberUpdatedState(onDelete)
+    val scope = rememberCoroutineScope()
+    val dead = with(density) { 28.dp.toPx() }
+    var widthPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    var raw by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    var stage by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    val shown = remember { androidx.compose.animation.core.Animatable(0f) }
+    fun shownOf(r: Float): Float = if (r >= 0f) 0f else -((-r) - dead).coerceAtLeast(0f)
+    fun stageOf(x: Float): Int = when {
+        widthPx <= 0f -> 0
+        -x >= widthPx * 0.40f -> 2
+        -x >= widthPx * 0.20f -> 1
+        else -> 0
+    }
+    fun settle() { raw = 0f; stage = 0; scope.launch(Guard) { shown.animateTo(0f, androidx.compose.animation.core.tween(180)) } }
+    Box(
+        Modifier.fillMaxWidth().onSizeChanged { widthPx = it.width.toFloat() }.pointerInput(Unit) {
+            detectHorizontalDragGestures(
+                onDragStart = { raw = 0f; stage = 0 },
+                onDragEnd = {
+                    if (stageOf(shown.value) == 2) deleteNow()
+                    settle()
+                },
+                onDragCancel = { settle() },
+                onHorizontalDrag = { change, dx ->
+                    change.consume()
+                    raw += dx
+                    val x = shownOf(raw)
+                    val next = stageOf(x)
+                    if (next != stage) {
+                        if (next == 2) Haptics.heavy(view) else Haptics.tick(view, false)
+                        stage = next
+                    }
+                    scope.launch(Guard) { shown.snapTo(x) }
+                },
+            )
         },
     ) {
-        Box(Modifier.background(p.paper)) { content() }
+        val x = shown.value
+        if (x != 0f) {
+            val armed = stageOf(x) == 2
+            val red = Color(0xFFE53E3E)
+            Box(
+                Modifier.matchParentSize().background(if (armed) red else red.copy(alpha = 0.35f)).padding(horizontal = 24.dp),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                androidx.compose.material3.Icon(
+                    painterResource(R.drawable.ic_delete), null,
+                    tint = if (armed) Color(0xFFFFFFFF) else p.ink,
+                    modifier = Modifier.size(if (armed) 28.dp else 22.dp),
+                )
+            }
+        }
+        Box(Modifier.offset { androidx.compose.ui.unit.IntOffset(x.roundToInt(), 0) }.background(p.paper)) { content() }
+    }
     }
 }
 
