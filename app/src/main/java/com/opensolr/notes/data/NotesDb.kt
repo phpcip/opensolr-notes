@@ -52,13 +52,14 @@ class NotesDb(context: Context) : SQLiteOpenHelper(context.applicationContext, "
         }
     }
 
-    fun all(category: String? = null, from: Long? = null, to: Long? = null): List<Note> {
+    /** One page of notes, in the phone's order; [limit] rows from [offset]. */
+    fun all(category: String? = null, from: Long? = null, to: Long? = null, limit: Int = PAGE, offset: Int = 0): List<Note> {
         val where = StringBuilder("deleted = 0")
         val args = ArrayList<String>()
         if (!category.isNullOrEmpty()) { where.append(" AND category = ?"); args.add(category) }
         if (from != null) { where.append(" AND created_at >= ?"); args.add(from.toString()) }
         if (to != null) { where.append(" AND created_at <= ?"); args.add(to.toString()) }
-        return readableDatabase.query("note", null, where.toString(), args.toTypedArray(), null, null, ORDER_SQL).use { c ->
+        return readableDatabase.query("note", null, where.toString(), args.toTypedArray(), null, null, ORDER_SQL, "$offset,$limit").use { c ->
             buildList { while (c.moveToNext()) add(read(c)) }
         }
     }
@@ -67,10 +68,12 @@ class NotesDb(context: Context) : SQLiteOpenHelper(context.applicationContext, "
     private val ORDER_SQL = "CASE WHEN position > 0 THEN 1 ELSE 0 END, position ASC, created_at DESC"
 
     /** The phone's order of all its notes, as listed: every note gets its place, so a later move keeps the rest where they are. */
+    /** The order of the notes on screen; every placed note not among them keeps its order, behind them. */
     fun setOrder(ids: List<String>) {
         val db = writableDatabase
         db.beginTransaction()
         try {
+            db.execSQL("UPDATE note SET position = position + ? WHERE position > 0", arrayOf(ids.size))
             ids.forEachIndexed { i, id -> db.execSQL("UPDATE note SET position = ? WHERE id = ?", arrayOf(i + 1, id)) }
             db.setTransactionSuccessful()
         } finally {
@@ -97,6 +100,8 @@ class NotesDb(context: Context) : SQLiteOpenHelper(context.applicationContext, "
         }
 
     fun unsynced(): List<Note> = readableDatabase.query("note", null, "synced = 0", null, null, null, "updated_at").use { c -> buildList { while (c.moveToNext()) add(read(c)) } }
+
+    companion object { const val PAGE = 60 }
 
     fun count(): Int = readableDatabase.rawQuery("SELECT COUNT(*) FROM note WHERE deleted = 0", null).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
 

@@ -1,0 +1,363 @@
+package com.opensolr.notes.ui
+
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.height
+import com.opensolr.notes.ui.theme.LocalPalette
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.roundToInt
+
+private val Corner = RoundedCornerShape(2.dp)
+private val THUMB = 84.dp
+private val LABEL_LIFT = 64.dp
+private val TRACK = 48.dp
+private val THUMB_WIDTH = 28.dp
+private val LABEL_ROOM = 260.dp
+private const val SNAP_ITEMS = 4
+
+/**
+ * The shape of a lazy list for its fast scroller, built in the same order as the list's items:
+ * [head] for a heading item, [row] for anything else. Every item carries the title it sits under.
+ */
+class ScrollIndex {
+    val labels = ArrayList<String>()
+    val heads = ArrayList<Boolean>()
+    private var current = ""
+
+    fun head(label: String) {
+        current = label
+        labels += label
+        heads += true
+    }
+
+    /** A row; [label] gives it a title of its own (a flat list's day), otherwise it inherits the heading's. */
+    fun row(label: String? = null) {
+        if (label != null) current = label
+        labels += current
+        heads += false
+    }
+
+    fun rows(n: Int) = repeat(n) { row() }
+}
+
+/**
+ * The fast scroller of Opensolr Photos for a lazy list: the thumb follows a map of the real heights
+ * (headings and rows are learned apart), snaps to a nearby title, taps back at every title crossed,
+ * and shows the title being passed next to the thumb.
+ */
+/** How long the scroller stays visible after the list stops moving. */
+private const val SCROLLER_LINGER_MS = 1800L
+
+@Composable
+fun BoxScope.FastScroller(state: LazyListState, index: ScrollIndex, minItems: Int = 1) {
+    val p = LocalPalette.current
+    val view = LocalView.current
+    val scope = rememberCoroutineScope()
+    var dragging by remember { mutableStateOf(false) }
+    var aimed by remember { mutableIntStateOf(-1) }
+    var lastInto by remember { mutableFloatStateOf(0f) }
+    var job by remember { mutableStateOf<Job?>(null) }
+    val indexNow by rememberUpdatedState(index)
+    val learned = remember { mutableStateMapOf<Boolean, Float>() }
+    // The exact height of every row once it has been on screen (the answer card, a group head, a stacked
+    // conversation all differ): the thumb is placed from real heights wherever they are known, and only the
+    // rows never seen yet are guessed from the averages.
+    val sizes = remember(index) { mutableStateMapOf<Int, Float>() }
+    LaunchedEffect(state, index) {
+        snapshotFlow { state.layoutInfo.visibleItemsInfo }.collect { items ->
+            val heads = indexNow.heads
+            items.forEach { item ->
+                val h = item.size.toFloat()
+                if (h <= 0f || item.index >= heads.size) return@forEach
+                if (sizes[item.index] != h) sizes[item.index] = h
+                val heading = heads[item.index]
+                val old = learned[heading]
+                learned[heading] = if (old == null) h else old * 0.9f + h * 0.1f
+            }
+        }
+    }
+    val n = index.labels.size
+    // The thumb stays a while after the list stops, so it is there to grab again.
+    val active = dragging || state.isScrollInProgress
+    var linger by remember { mutableStateOf(false) }
+    LaunchedEffect(active) { if (active) linger = true else { kotlinx.coroutines.delay(SCROLLER_LINGER_MS); linger = false } }
+    val alpha by animateFloatAsState(
+        targetValue = if (dragging || linger) 1f else 0f,
+        animationSpec = tween(durationMillis = if (dragging) 0 else 450),
+        label = "fastScrollerAlpha",
+    )
+    // A list that fits the screen has nothing to scroll to.
+    if (n < minItems || !(state.canScrollForward || state.canScrollBackward)) return
+
+    // The averages stay frozen while the list moves or is dragged, so the thumb never jumps under the finger.
+    var heights by remember { mutableStateOf<Map<Boolean, Float>>(emptyMap()) }
+    val learnedNow = learned.toMap()
+    val moving = dragging || state.isScrollInProgress
+    LaunchedEffect(learnedNow, moving) { if (!moving) heights = learnedNow }
+    val sizesNow = sizes.toMap()
+    val density = LocalDensity.current
+    val rowPx = heights[false] ?: with(density) { 72.dp.toPx() }
+    val headPx = heights[true] ?: with(density) { 40.dp.toPx() }
+
+    val tops = remember(index, n, rowPx, headPx, sizesNow) {
+        val out = FloatArray(n + 1)
+        var y = 0f
+        for (i in 0 until n) {
+            out[i] = y
+            y += sizesNow[i] ?: if (index.heads[i]) headPx else rowPx
+        }
+        out[n] = y
+        out
+    }
+    // Where each title starts: a heading, or the first row of a new title in a flat list.
+    val starts = remember(index, n) { BooleanArray(n) { i -> index.heads[i] || (i > 0 && index.labels[i] != index.labels[i - 1]) } }
+
+    val viewportPx = state.layoutInfo.viewportSize.height.toFloat()
+    val scrollablePx = (tops[n] - viewportPx).coerceAtLeast(1f)
+    val topsNow by rememberUpdatedState(tops)
+    val startsNow by rememberUpdatedState(starts)
+    val scrollableNow by rememberUpdatedState(scrollablePx)
+    val rowNow by rememberUpdatedState(rowPx)
+    val fraction by remember(state) {
+        derivedStateOf {
+            val map = topsNow
+            val last = map.size - 2
+            if (last < 0) 0f else {
+                val px = if (dragging && aimed >= 0) map[aimed.coerceIn(0, last)] + lastInto
+                else map[state.firstVisibleItemIndex.coerceIn(0, last)] + state.firstVisibleItemScrollOffset
+                (px / scrollableNow).coerceIn(0f, 1f)
+            }
+        }
+    }
+
+    BoxWithConstraints(Modifier.matchParentSize()) {
+        val travelPx = with(density) { (maxHeight - THUMB).toPx() }
+        val halfThumb = with(density) { THUMB.toPx() } / 2f
+        val liftPx = with(density) { LABEL_LIFT.toPx() }
+
+        fun aimAt(y: Float) {
+            val map = topsNow
+            val last = map.size - 2
+            if (last < 0) return
+            val marks = startsNow
+            val labels = indexNow.labels
+            val at = if (travelPx <= 0f) 0f else ((y - halfThumb) / travelPx).coerceIn(0f, 1f)
+            val wanted = at * scrollableNow
+            var lo = 0
+            var hi = last
+            while (lo < hi) {
+                val mid = (lo + hi + 1) / 2
+                if (map[mid] <= wanted) lo = mid else hi = mid - 1
+            }
+            var target = lo
+            ((target - SNAP_ITEMS).coerceAtLeast(0)..(target + SNAP_ITEMS).coerceAtMost(last))
+                .filter { marks.getOrElse(it) { false } }
+                .minByOrNull { abs(map[it] - wanted) }
+                ?.let { if (abs(map[it] - wanted) <= rowNow) target = it }
+            val into = if (target == lo) (wanted - map[target]).coerceAtLeast(0f) else 0f
+            if (target == aimed && abs(into - lastInto) < 2f) return
+            if (aimed >= 0 && target != aimed) {
+                val from = minOf(aimed, target) + 1
+                val to = maxOf(aimed, target)
+                var crossed = 0
+                for (i in from..to) if (marks.getOrElse(i) { false }) crossed++
+                if (crossed > 0 && labels.getOrNull(aimed) != labels.getOrNull(target)) Haptics.tick(view, crossed > 1)
+            }
+            lastInto = into
+            aimed = target
+            job?.cancel()
+            job = scope.launch(com.opensolr.notes.ui.Guard) { state.scrollToItem(target, into.roundToInt()) }
+        }
+
+        // As in Opensolr Photos: while it shows, the whole right strip takes the finger; hidden, it takes nothing, so a
+        // swipe from the edge reaches the row. At the very top only the thumb takes it, leaving pull-to-refresh alone.
+        // One gesture area whose shape changes, never a new one, so a drag in progress is never cut off.
+        val thumbTop = travelPx * fraction
+        val strip = dragging || state.canScrollBackward
+        val boxTop = if (strip) 0f else thumbTop
+        val topNow by androidx.compose.runtime.rememberUpdatedState(boxTop)
+        if (alpha > 0.05f || dragging) Box(
+            Modifier.align(Alignment.TopEnd).offset { IntOffset(0, boxTop.roundToInt()) }.width(TRACK)
+                .then(if (strip) Modifier.fillMaxHeight() else Modifier.height(THUMB))
+                .pointerInput(travelPx) {
+                    try {
+                        detectVerticalDragGestures(
+                            onDragStart = { o -> dragging = true; aimed = -1; Haptics.tick(view, false); aimAt(topNow + o.y) },
+                            onDragEnd = { dragging = false; aimed = -1 },
+                            onDragCancel = { dragging = false; aimed = -1 },
+                            onVerticalDrag = { change, _ -> change.consume(); aimAt(topNow + change.position.y) },
+                        )
+                    } finally {
+                        dragging = false
+                        aimed = -1
+                    }
+                },
+        )
+        Thumb(thumbTop, alpha, dragging)
+        if (dragging && aimed >= 0) {
+            Bubble(index.labels.getOrNull(aimed).orEmpty(), (travelPx * fraction - liftPx).coerceAtLeast(0f))
+        }
+    }
+}
+
+/** Titles of a scrolling column, each at its offset in the content; filled by [scrollMark]. */
+class ScrollMarks {
+    val at = mutableStateMapOf<Any, Pair<Int, String>>()
+}
+
+/** The marks of the column being built, so a [Zone] or a header registers itself without wiring. */
+val LocalScrollMarks = compositionLocalOf<ScrollMarks?> { null }
+
+/** Records this child of a scrolling column as a title at its position in the content. */
+fun Modifier.scrollMark(marks: ScrollMarks?, key: Any, label: String): Modifier =
+    if (marks == null) this else onGloballyPositioned { marks.at[key] = it.positionInParent().y.roundToInt() to label }
+
+/** The same scroller for a scrolling column: snaps to and taps at every title in [marks]. */
+@Composable
+fun BoxScope.FastScroller(state: ScrollState, marks: ScrollMarks, minScreens: Float = 2f) {
+    val view = LocalView.current
+    val scope = rememberCoroutineScope()
+    var dragging by remember { mutableStateOf(false) }
+    var aimedPx by remember { mutableIntStateOf(-1) }
+    // The thumb stays a while after the list stops, so it is there to grab again.
+    val active = dragging || state.isScrollInProgress
+    var linger by remember { mutableStateOf(false) }
+    LaunchedEffect(active) { if (active) linger = true else { kotlinx.coroutines.delay(SCROLLER_LINGER_MS); linger = false } }
+    val alpha by animateFloatAsState(
+        targetValue = if (dragging || linger) 1f else 0f,
+        animationSpec = tween(durationMillis = if (dragging) 0 else 450),
+        label = "columnScrollerAlpha",
+    )
+    val density = LocalDensity.current
+    BoxWithConstraints(Modifier.matchParentSize()) {
+        val viewPx = with(density) { maxHeight.toPx() }
+        if (state.maxValue <= 0 || state.maxValue == Int.MAX_VALUE || state.maxValue < viewPx * (minScreens - 1f)) return@BoxWithConstraints
+        val travelPx = with(density) { (maxHeight - THUMB).toPx() }
+        val halfThumb = with(density) { THUMB.toPx() } / 2f
+        val liftPx = with(density) { LABEL_LIFT.toPx() }
+        val snapPx = with(density) { 48.dp.toPx() }
+        val sorted = marks.at.values.sortedBy { it.first }
+
+        fun titleAt(px: Int): String = sorted.lastOrNull { it.first <= px + 1 }?.second.orEmpty()
+
+        fun aimAt(y: Float) {
+            val at = if (travelPx <= 0f) 0f else ((y - halfThumb) / travelPx).coerceIn(0f, 1f)
+            var wanted = (at * state.maxValue).roundToInt()
+            sorted.minByOrNull { abs(it.first - wanted) }?.let { if (abs(it.first - wanted) <= snapPx) wanted = it.first.coerceAtMost(state.maxValue) }
+            if (wanted == aimedPx) return
+            if (aimedPx >= 0) {
+                val lo = minOf(aimedPx, wanted)
+                val hi = maxOf(aimedPx, wanted)
+                val crossed = sorted.count { it.first in (lo + 1)..hi }
+                if (crossed > 0) Haptics.tick(view, crossed > 1)
+            }
+            aimedPx = wanted
+            scope.launch(com.opensolr.notes.ui.Guard) { state.scrollTo(wanted) }
+        }
+
+        val px = if (dragging && aimedPx >= 0) aimedPx else state.value
+        val thumbY = travelPx * px / state.maxValue.coerceAtLeast(1)
+        // While it shows, the whole right strip takes the finger; one gesture area, so a drag is never cut off.
+        if (alpha > 0.05f || dragging) Box(
+            Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(TRACK).pointerInput(travelPx) {
+                try {
+                    detectVerticalDragGestures(
+                        onDragStart = { o -> dragging = true; aimedPx = -1; Haptics.tick(view, false); aimAt(o.y) },
+                        onDragEnd = { dragging = false; aimedPx = -1 },
+                        onDragCancel = { dragging = false; aimedPx = -1 },
+                        onVerticalDrag = { change, _ -> change.consume(); aimAt(change.position.y) },
+                    )
+                } finally {
+                    dragging = false
+                    aimedPx = -1
+                }
+            },
+        )
+        Thumb(thumbY, alpha, dragging)
+        if (dragging) {
+            val title = titleAt(px)
+            if (title.isNotBlank()) Bubble(title, (thumbY - liftPx).coerceAtLeast(0f))
+        }
+    }
+}
+
+@Composable
+private fun BoxScope.Thumb(y: Float, alpha: Float, dragging: Boolean) {
+    val p = LocalPalette.current
+    // A wide handle with up and down marks, as in Google Photos: easy to find and to hold.
+    val mark = if (dragging) p.onAccentFill else p.paper
+    Box(
+        Modifier.align(Alignment.TopEnd).offset { IntOffset(0, y.roundToInt()) }
+            .padding(end = 4.dp).size(width = THUMB_WIDTH, height = THUMB).alpha(alpha)
+            .background(if (dragging) p.accentFill else p.ink, Corner)
+            .border(1.dp, if (dragging) p.accentFill else p.paper, Corner),
+        contentAlignment = Alignment.Center,
+    ) {
+        androidx.compose.foundation.layout.Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            androidx.compose.material3.Icon(
+                androidx.compose.ui.res.painterResource(com.opensolr.notes.R.drawable.ic_chevron_down), null, tint = mark,
+                modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = 180f },
+            )
+            androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(com.opensolr.notes.R.drawable.ic_chevron_down), null, tint = mark, modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+@Composable
+private fun BoxScope.Bubble(text: String, y: Float) {
+    if (text.isBlank()) return
+    val p = LocalPalette.current
+    Box(
+        Modifier.align(Alignment.TopEnd).offset { IntOffset(0, y.roundToInt()) }
+            .padding(end = TRACK + 4.dp).widthIn(max = LABEL_ROOM - TRACK - 8.dp)
+            .background(p.accentFill, Corner).padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = p.onAccentFill, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
+}

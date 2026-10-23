@@ -17,7 +17,7 @@ data class Filters(val category: String? = null, val from: Long? = null, val to:
 /** Search in the notes index: words and meaning fused by {!hybrid}, as on search.opensolr.com. */
 class NotesSearch(private val prefs: AppPrefs, private val api: OpensolrApi) {
 
-    suspend fun search(connection: IndexConnection, typed: String, filters: Filters, rows: Int = 60): List<Hit> {
+    suspend fun search(connection: IndexConnection, typed: String, filters: Filters, rows: Int = PAGE, start: Int = 0): List<Hit> {
         val q = typed.trim()
         if (q.isEmpty()) return emptyList()
         val p = ArrayList<Pair<String, String>>()
@@ -47,6 +47,7 @@ class NotesSearch(private val prefs: AppPrefs, private val api: OpensolrApi) {
         }
         p += "fl" to "id,score"
         p += "rows" to rows.toString()
+        p += "start" to start.toString()
         p += "hl" to "true"
         p += "hl.q" to "{!edismax qf=\"$qf\" mm=0 v=\$uq}"
         p += "hl.fl" to "text,title"
@@ -88,5 +89,6 @@ class NotesSearch(private val prefs: AppPrefs, private val api: OpensolrApi) {
         const val QF = "title^0.1 description^0.1 uri^0.1 text^5 text_t^5"
         const val MM = "2<90% 5<75% 8<60% 12<50%"
         const val TOP_K = 1000
+        const val PAGE = 60
     }
 }

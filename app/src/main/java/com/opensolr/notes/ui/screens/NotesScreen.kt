@@ -56,6 +56,10 @@ import com.opensolr.notes.ui.AppViewModel
 import com.opensolr.notes.ui.Chip
 import com.opensolr.notes.ui.Hairline
 import com.opensolr.notes.ui.IconBtn
+import com.opensolr.notes.ui.FastScroller
+import com.opensolr.notes.ui.ScrollIndex
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import com.opensolr.notes.ui.Markdown
 import com.opensolr.notes.ui.rememberPress
 import com.opensolr.notes.ui.tile
@@ -112,14 +116,28 @@ fun NotesScreen(vm: AppViewModel) {
         // Pull down: the index is synced (changes from the web editor or another phone come in) and the list reloads.
         com.opensolr.notes.ui.RefreshBox(refreshing = vm.syncing, onRefresh = { vm.syncNow(); if (vm.query.isNotBlank()) vm.search(vm.query) }, modifier = Modifier.fillMaxSize()) {
             if (found != null) {
-                LazyColumn(Modifier.fillMaxSize()) {
+                val resultState = androidx.compose.foundation.lazy.rememberLazyListState()
+                val aiCard = found.isNotEmpty() && vm.prefs.vectorAllowed
+                val aiLabel = stringResource(R.string.ai_hints)
+                // The scroller's map of the list, in the order of its items; results are titled by the month of the note.
+                val resultIndex = remember(found, aiCard) {
+                    val month = java.text.SimpleDateFormat("LLLL yyyy", java.util.Locale.getDefault())
+                    ScrollIndex().apply {
+                        if (found.isEmpty()) row()
+                        if (aiCard) row(aiLabel)
+                        found.forEach { (n, _) -> row(month.format(java.util.Date(n.createdAt)).replaceFirstChar { it.uppercase() }) }
+                    }
+                }
+                NearEnd(resultState) { vm.loadMoreHits() }
+                LazyColumn(Modifier.fillMaxSize(), state = resultState) {
                     if (found.isEmpty() && !vm.searching) item { Empty(stringResource(R.string.no_results)) }
                     // AI Hints, as on the hosted search page: an answer to the search from the notes it found
-                    if (found.isNotEmpty() && vm.prefs.vectorAllowed) item(key = "ai") {
+                    if (aiCard) item(key = "ai") {
                         AiHintsCard(vm.aiText, vm.aiRunning, onAsk = { vm.askAi() }, onClose = { vm.stopAi() })
                     }
                     items(found, key = { it.first.id }) { (note, snippet) -> NoteRow(note, snippet, onOpen = { vm.open(note.id) }) }
                 }
+                FastScroller(resultState, resultIndex)
             } else {
                 // Swipe left deletes a note after a confirmation; the grip at the right drags it to another place.
                 // The order lives on this phone only.
@@ -152,13 +170,22 @@ fun NotesScreen(vm: AppViewModel) {
                     }
                     if (over != 0f) scope.launch { listState.scrollBy(over.coerceIn(-40f, 40f)); dragOffset -= over.coerceIn(-40f, 40f) }
                 }
+                // The scroller's map of the list: every note titled by the month it was written in
+                val notesIndex = remember(vm.notes) {
+                    val month = java.text.SimpleDateFormat("LLLL yyyy", java.util.Locale.getDefault())
+                    ScrollIndex().apply {
+                        if (vm.notes.isEmpty()) row()
+                        vm.notes.forEach { n -> row(month.format(java.util.Date(n.createdAt)).replaceFirstChar { it.uppercase() }) }
+                    }
+                }
+                NearEnd(listState) { vm.loadMoreNotes() }
                 LazyColumn(Modifier.fillMaxSize(), state = listState) {
                     if (vm.notes.isEmpty()) item { Empty(stringResource(R.string.no_notes)) }
                     items(vm.notes, key = { it.id }) { note ->
                         val isDragged = dragging == note.id
                         Box(
                             Modifier
-                                .then(if (isDragged) Modifier else Modifier.animateItem())
+                                .then(if (isDragged) Modifier else Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null))
                                 .zIndex(if (isDragged) 1f else 0f)
                                 .graphicsLayer { translationY = if (isDragged) dragOffset else 0f; shadowElevation = if (isDragged) 12f else 0f },
                         ) {
@@ -186,6 +213,7 @@ fun NotesScreen(vm: AppViewModel) {
                         }
                     }
                 }
+                FastScroller(listState, notesIndex)
                 confirmDelete?.let { id ->
                     ConfirmDialog(
                         title = stringResource(R.string.delete_note_q), text = stringResource(R.string.delete_note_text), action = stringResource(R.string.delete),
@@ -377,5 +405,19 @@ private fun AiHintsCard(answer: String?, answering: Boolean, onAsk: () -> Unit, 
             if (answer.isNullOrBlank()) Text(stringResource(R.string.ai_thinking), style = MaterialTheme.typography.bodyMedium, color = p.muted)
             else androidx.compose.foundation.text.selection.SelectionContainer { Markdown(answer) }
         }
+    }
+}
+
+/** The next page is asked for while the reader is still 20 rows above the end, and again whenever the bottom is reached. */
+@Composable
+private fun NearEnd(state: androidx.compose.foundation.lazy.LazyListState, onNear: () -> Unit) {
+    val near = androidx.compose.runtime.rememberUpdatedState(onNear)
+    LaunchedEffect(state) {
+        snapshotFlow {
+            val info = state.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull()?.index ?: -1
+            // The count is part of the value, so a page that lands with the reader still near the end asks for the next
+            (info.totalItemsCount > 0 && (last >= info.totalItemsCount - 20 || !state.canScrollForward)) to info.totalItemsCount
+        }.collect { (isNear, _) -> if (isNear) near.value() }
     }
 }

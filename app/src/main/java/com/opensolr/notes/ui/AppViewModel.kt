@@ -53,6 +53,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var filters by mutableStateOf(Filters()); private set
     var query by mutableStateOf(""); private set
     var hits by mutableStateOf<List<Hit>?>(null); private set
+    /** No page left to load: the list, or the results, are complete. */
+    var notesEnd by mutableStateOf(false); private set
+    var hitsEnd by mutableStateOf(false); private set
+    private var loadingMore = false
     var searching by mutableStateOf(false); private set
     var syncing by mutableStateOf(false); private set
     /** A spinner over the whole screen while an action runs (opening, saving, deleting a note). */
@@ -85,12 +89,50 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         screen = if (signedIn) Screen.Notes else Screen.Setup
     }
 
+    /** The list again, as many rows as were on screen (at least a page), so the position holds. */
     fun reload() {
         val f = filters
+        val want = maxOf(NotesDb.PAGE, notes.size)
         viewModelScope.launch(Dispatchers.IO) {
-            val list = db.all(f.category, f.from, f.to)
+            val list = db.all(f.category, f.from, f.to, limit = want)
             val cats = db.categories()
-            withContext(Dispatchers.Main) { notes = list; categories = cats }
+            withContext(Dispatchers.Main) { notes = list; notesEnd = list.size < want; categories = cats }
+        }
+    }
+
+    /** The next page of notes, when the reader nears the end of the list. */
+    fun loadMoreNotes() {
+        if (notesEnd || loadingMore) return
+        loadingMore = true
+        val f = filters
+        val offset = notes.size
+        viewModelScope.launch(Dispatchers.IO) {
+            val page = db.all(f.category, f.from, f.to, limit = NotesDb.PAGE, offset = offset)
+            withContext(Dispatchers.Main) {
+                if (notes.size == offset) { notes = notes + page; notesEnd = page.size < NotesDb.PAGE }
+                loadingMore = false
+            }
+        }
+    }
+
+    /** The next page of results, from the index, when the reader nears the end. */
+    fun loadMoreHits() {
+        val h = hits ?: return
+        if (hitsEnd || searching || query.isBlank()) return
+        searchJob = viewModelScope.launch(Guard) {
+            searching = true
+            try {
+                val connection = withContext(Dispatchers.IO) { index.ensure() }
+                val page = withContext(Dispatchers.IO) { searcher.search(connection, query, filters, start = h.size) }
+                hits = h + page
+                hitsEnd = page.size < NotesSearch.PAGE
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                problem = e.message
+            } finally {
+                searching = false
+            }
         }
     }
 
@@ -105,19 +147,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** What is typed in the search box; the search itself runs on Enter or the check button. */
     fun type(typed: String) {
         query = typed
-        if (typed.isBlank()) { searchJob?.cancel(); stopAi(); hits = null; searching = false }
+        if (typed.isBlank()) { searchJob?.cancel(); stopAi(); hits = null; hitsEnd = false; searching = false }
     }
 
     fun search(typed: String = query) {
         query = typed
         searchJob?.cancel()
         stopAi()
+        hitsEnd = false
         if (typed.isBlank()) { hits = null; searching = false; return }
         searchJob = viewModelScope.launch(Guard) {
             searching = true
             try {
                 val connection = withContext(Dispatchers.IO) { index.ensure() }
-                hits = withContext(Dispatchers.IO) { searcher.search(connection, typed, filters) }
+                val page = withContext(Dispatchers.IO) { searcher.search(connection, typed, filters) }
+                hits = page
+                hitsEnd = page.size < NotesSearch.PAGE
             } catch (e: SignInRequiredException) {
                 onSessionEnded()
             } catch (e: IndexChoiceException) {
