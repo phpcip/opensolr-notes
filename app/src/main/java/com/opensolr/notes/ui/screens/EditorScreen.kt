@@ -114,7 +114,8 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
             Hairline()
             CategoryField(category, vm.categories, onChange = { category = it })
             Hairline()
-            val mono = MaterialTheme.typography.bodyMedium.copy(color = p.ink, fontFamily = FontFamily.Monospace, lineHeight = MaterialTheme.typography.bodyMedium.fontSize * 1.6f)
+            // normal weight on purpose: the app's body text is Medium, which reads as bold in a monospace face
+            val mono = MaterialTheme.typography.bodyMedium.copy(color = p.ink, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Normal, lineHeight = MaterialTheme.typography.bodyMedium.fontSize * 1.6f)
             Box(Modifier.fillMaxWidth().heightIn(min = 260.dp).padding(horizontal = 12.dp, vertical = 11.dp)) {
                 if (body.text.isEmpty()) Text(stringResource(R.string.text_hint), style = mono.copy(color = p.muted))
                 BasicTextField(

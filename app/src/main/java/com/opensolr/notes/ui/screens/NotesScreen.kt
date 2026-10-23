@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -55,6 +56,8 @@ fun NotesScreen(vm: AppViewModel) {
     var showFilters by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
         TopBar(stringResource(R.string.app_name)) {
+            // sync or search in progress
+            if (vm.syncing || vm.searching) androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), color = p.accent, strokeWidth = 2.dp)
             IconBtn(R.drawable.ic_add, { vm.go(Screen.Editor(null)) }, strong = true)
             IconBtn(R.drawable.ic_settings, { vm.go(Screen.Settings) })
         }
