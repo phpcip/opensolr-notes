@@ -87,6 +87,13 @@ fun SettingsScreen(vm: AppViewModel) {
                 ToggleRow(stringResource(R.string.haptics), stringResource(R.string.haptics_hint), haptics) { haptics = it; vm.prefs.haptics = it; Haptics.enabled = it; Haptics.toggle(view, it) }
                 Spacer(Modifier.height(12.dp))
                 InfoRow(stringResource(R.string.version), BuildConfig.VERSION_NAME)
+                Spacer(Modifier.height(12.dp))
+                GhostButton(
+                    if (vm.checkingUpdate) stringResource(R.string.checking) else stringResource(R.string.check_for_updates),
+                    onClick = { vm.checkForUpdate(force = true) }, enabled = !vm.checkingUpdate, modifier = Modifier.fillMaxWidth(),
+                )
+                if (vm.upToDate && vm.update == null) Text(stringResource(R.string.up_to_date), style = MaterialTheme.typography.bodySmall, color = p.muted, modifier = Modifier.padding(top = 6.dp))
+                if (vm.update == null) vm.updateError?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = p.muted, modifier = Modifier.padding(top = 6.dp)) }
                 val newer = vm.update
                 if (newer != null) {
                     Spacer(Modifier.height(8.dp))

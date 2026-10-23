@@ -229,11 +229,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- updates ----
 
-    fun checkForUpdate() {
-        if (System.currentTimeMillis() - prefs.lastUpdateCheck < 6 * 3600_000L && update == null) return
+    /** True while a check asked for by hand runs; [upToDate] is set when it found nothing newer. */
+    var checkingUpdate by mutableStateOf(false); private set
+    var upToDate by mutableStateOf(false); private set
+
+    fun checkForUpdate(force: Boolean = false) {
+        if (!force && System.currentTimeMillis() - prefs.lastUpdateCheck < 6 * 3600_000L && update == null) return
         viewModelScope.launch(Guard) {
             prefs.lastUpdateCheck = System.currentTimeMillis()
-            UpdateCheck.check().getOrNull()?.let { update = it }
+            if (force) { checkingUpdate = true; upToDate = false; updateError = null }
+            val r = UpdateCheck.check()
+            r.getOrNull()?.let { update = it }
+            if (force) {
+                checkingUpdate = false
+                if (r.isFailure) updateError = r.exceptionOrNull()?.message else if (r.getOrNull() == null) upToDate = true
+            }
         }
     }
 

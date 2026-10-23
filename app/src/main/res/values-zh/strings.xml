@@ -54,4 +54,7 @@
     <string name="index_choice_text">你的账户已有另一部手机创建的笔记索引。共享它以在两部手机上看到相同的笔记，或为这部手机新建一个。</string>
     <string name="index_choice_new">为这部手机新建</string>
     <string name="index_security">索引密码与安全</string>
+    <string name="check_for_updates">检查更新</string>
+    <string name="checking">正在检查…</string>
+    <string name="up_to_date">已是最新版本。</string>
 </resources>

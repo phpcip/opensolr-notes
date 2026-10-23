@@ -54,4 +54,7 @@
     <string name="index_choice_text">アカウントには別の端末で作ったメモのインデックスがあります。共有して同じメモを見るか、この端末専用に始めるか選んでください。</string>
     <string name="index_choice_new">この端末専用に始める</string>
     <string name="index_security">インデックスのパスワードとセキュリティ</string>
+    <string name="check_for_updates">アップデートを確認</string>
+    <string name="checking">確認中…</string>
+    <string name="up_to_date">最新バージョンです。</string>
 </resources>

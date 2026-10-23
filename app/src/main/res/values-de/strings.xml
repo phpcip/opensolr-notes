@@ -54,4 +54,7 @@
     <string name="index_choice_text">Dein Konto hat schon einen Notiz-Index von einem anderen Telefon. Teile ihn, damit beide dieselben Notizen sehen, oder beginne einen eigenen.</string>
     <string name="index_choice_new">Eigenen beginnen</string>
     <string name="index_security">Index-Passwort und Sicherheit</string>
+    <string name="check_for_updates">Nach Updates suchen</string>
+    <string name="checking">Wird geprüft…</string>
+    <string name="up_to_date">Du hast die neueste Version.</string>
 </resources>
