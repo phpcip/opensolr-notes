@@ -14,7 +14,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.res.painterResource
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -96,48 +100,72 @@ fun NotesScreen(vm: AppViewModel) {
             if (found != null) {
                 LazyColumn(Modifier.fillMaxSize()) {
                     if (found.isEmpty() && !vm.searching) item { Empty(stringResource(R.string.no_results)) }
-                    items(found, key = { it.first.id }) { (note, snippet) -> NoteRow(note, snippet) { vm.open(note.id) } }
+                    items(found, key = { it.first.id }) { (note, snippet) -> NoteRow(note, snippet, onOpen = { vm.open(note.id) }) }
                 }
             } else {
-                // Swipe right pins (or unpins) a note, swipe left deletes it after a confirmation; a long press drags it
-                // to another place. Pins and order live on this phone only.
+                // Swipe right pins (or unpins) a note, swipe left deletes it after a confirmation; the grip at the right
+                // drags it to another place. Pins and order live on this phone only.
                 var confirmDelete by remember { mutableStateOf<String?>(null) }
                 val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+                val scope = rememberCoroutineScope()
                 var dragging by remember { mutableStateOf<String?>(null) }
                 var dragOffset by remember { mutableStateOf(0f) }
+                // The dragged row follows the finger; when its edge passes the middle of a neighbour, the two swap places
+                // and the offset is corrected by the distance the row just jumped, so it stays under the finger.
+                fun dragBy(id: String, dy: Float) {
+                    dragOffset += dy
+                    val info = listState.layoutInfo
+                    val me = info.visibleItemsInfo.firstOrNull { it.key == id } ?: return
+                    val top = me.offset + dragOffset
+                    val bottom = top + me.size
+                    val target = info.visibleItemsInfo.firstOrNull { it.key != id && it.key is String && (
+                        (dy < 0 && it.offset < me.offset && top < it.offset + it.size / 2) ||
+                        (dy > 0 && it.offset > me.offset && bottom > it.offset + it.size / 2)) }
+                    if (target != null) {
+                        dragOffset += me.offset - target.offset + (if (dy > 0) (me.size - target.size) else 0)
+                        Haptics.tick(view, false)
+                        vm.move(id, target.key as String)
+                    }
+                    // Near the edge of the list, it scrolls along
+                    val over = when {
+                        top < info.viewportStartOffset -> top - info.viewportStartOffset
+                        bottom > info.viewportEndOffset -> bottom - info.viewportEndOffset
+                        else -> 0f
+                    }
+                    if (over != 0f) scope.launch { listState.scrollBy(over.coerceIn(-40f, 40f)); dragOffset -= over.coerceIn(-40f, 40f) }
+                }
                 LazyColumn(Modifier.fillMaxSize(), state = listState) {
                     if (vm.notes.isEmpty()) item { Empty(stringResource(R.string.no_notes)) }
                     items(vm.notes, key = { it.id }) { note ->
                         val isDragged = dragging == note.id
                         Box(
                             Modifier
+                                .then(if (isDragged) Modifier else Modifier.animateItem())
                                 .zIndex(if (isDragged) 1f else 0f)
-                                .graphicsLayer { translationY = if (isDragged) dragOffset else 0f }
-                                .pointerInput(note.id) {
-                                    detectDragGesturesAfterLongPress(
-                                        onDragStart = { dragging = note.id; dragOffset = 0f; Haptics.tick(view, true) },
-                                        onDragEnd = { dragging = null; dragOffset = 0f },
-                                        onDragCancel = { dragging = null; dragOffset = 0f },
-                                        onDrag = { change, amount ->
-                                            change.consume()
-                                            dragOffset += amount.y
-                                            val info = listState.layoutInfo.visibleItemsInfo
-                                            val me = info.firstOrNull { it.key == note.id } ?: return@detectDragGesturesAfterLongPress
-                                            val centre = me.offset + dragOffset + me.size / 2f
-                                            val over = info.firstOrNull { it.key != note.id && centre > it.offset && centre < it.offset + it.size }
-                                            if (over != null && over.key is String) {
-                                                dragOffset -= (over.offset - me.offset)
-                                                vm.move(note.id, over.key as String)
-                                            }
-                                        },
-                                    )
-                                },
+                                .graphicsLayer { translationY = if (isDragged) dragOffset else 0f; shadowElevation = if (isDragged) 12f else 0f },
                         ) {
                             SwipeRow(
                                 note = note,
                                 onPin = { vm.togglePin(note.id) },
                                 onDelete = { confirmDelete = note.id },
-                            ) { NoteRow(note, null) { vm.open(note.id) } }
+                            ) {
+                                NoteRow(note, null, onOpen = { vm.open(note.id) }) {
+                                    // The grip: three lines at the right of the row; a drag on it moves the note
+                                    Box(
+                                        Modifier.size(44.dp).pointerInput(note.id) {
+                                            detectDragGestures(
+                                                onDragStart = { dragging = note.id; dragOffset = 0f; Haptics.tick(view, true) },
+                                                onDragEnd = { dragging = null; dragOffset = 0f },
+                                                onDragCancel = { dragging = null; dragOffset = 0f },
+                                                onDrag = { change, amount -> change.consume(); dragBy(note.id, amount.y) },
+                                            )
+                                        },
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        androidx.compose.material3.Icon(painterResource(R.drawable.ic_drag), contentDescription = null, tint = p.muted, modifier = Modifier.size(22.dp))
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -217,9 +245,10 @@ private fun SwipeRow(note: Note, onPin: () -> Unit, onDelete: () -> Unit, conten
 }
 
 @Composable
-private fun NoteRow(note: Note, snippet: String?, onOpen: () -> Unit) {
+private fun NoteRow(note: Note, snippet: String?, onOpen: () -> Unit, trailing: (@Composable () -> Unit)? = null) {
     val p = LocalPalette.current
-    Column(Modifier.fillMaxWidth().hapticClickable(onClick = onOpen).padding(horizontal = 16.dp, vertical = 12.dp)) {
+    Row(Modifier.fillMaxWidth().hapticClickable(onClick = onOpen), verticalAlignment = Alignment.CenterVertically) {
+    Column(Modifier.weight(1f).padding(start = 16.dp, end = if (trailing != null) 4.dp else 16.dp, top = 12.dp, bottom = 12.dp)) {
         Text(com.opensolr.notes.ui.Marks.plainStyled(note.shownTitle.ifBlank { stringResource(R.string.untitled) }), style = MaterialTheme.typography.titleSmall, color = p.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.height(3.dp))
         if (!snippet.isNullOrBlank()) {
@@ -237,13 +266,15 @@ private fun NoteRow(note: Note, snippet: String?, onOpen: () -> Unit) {
             Text(fmtDate(note.createdAt), style = MaterialTheme.typography.labelSmall, color = p.muted)
             if (note.category.isNotBlank()) {
                 Spacer(Modifier.width(10.dp))
-                Text(note.category, style = MaterialTheme.typography.labelSmall, color = p.accent)
+                Text(note.category, style = MaterialTheme.typography.labelSmall, color = p.accent, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
             }
             if (!note.synced) {
                 Spacer(Modifier.width(10.dp))
                 Text(stringResource(R.string.not_synced), style = MaterialTheme.typography.labelSmall, color = p.muted)
             }
         }
+    }
+    if (trailing != null) { trailing(); Spacer(Modifier.width(6.dp)) }
     }
     Hairline()
 }
