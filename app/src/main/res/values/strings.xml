@@ -8,6 +8,13 @@
     <string name="sign_in">Sign in with Opensolr</string>
     <string name="search_hint">Search your notes</string>
     <string name="no_results">Nothing found.</string>
+    <string name="ai_hints">AI Hints</string>
+    <string name="ai_thinking">Thinking…</string>
+    <string name="ai_regenerate">Regenerate</string>
+    <string name="ai_close">Close</string>
+    <string name="ai_no_answer">Nothing in your notes answers this.</string>
+    <string name="ai_off_quota">Your monthly AI requests are used up. AI Hints return when the allowance resets.</string>
+    <string name="ai_off_plan">Your plan searches by words only: no AI Hints.</string>
     <string name="no_notes">No notes yet. Tap + to write one.</string>
     <string name="untitled">Untitled</string>
     <string name="not_synced">not synced yet</string>

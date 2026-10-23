@@ -4,6 +4,7 @@ import com.opensolr.notes.data.AppPrefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.coroutineContext
 import okhttp3.FormBody
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
@@ -160,6 +161,32 @@ class OpensolrApi(private val prefs: AppPrefs) {
             if (text.contains("VECTOR_NOT_ALLOWED")) throw VectorNotAllowedException()
             text
         }
+    }
+
+    /** The answer streamed as the AI writes it, chunk by chunk; cancelling the coroutine closes the connection. */
+    suspend fun aiAnswer(name: String, instruction: String, onChunk: (String) -> Unit) = withContext(Dispatchers.IO) {
+        val form = FormBody.Builder()
+            .add("email", email).add("api_key", key).add("index_name", name)
+            .add("language", "English").add("instruction", instruction).add("temperature", "0.1").add("stream", "yes")
+            .build()
+        val call = Http.stream.newCall(Request.Builder().url(AI + "ai_summary").post(form).build())
+        val stop = coroutineContext[kotlinx.coroutines.Job]?.invokeOnCompletion { if (it != null) call.cancel() }
+        try { call.execute().use { r ->
+            if (!r.isSuccessful) {
+                classify(r.code, r.body?.string().orEmpty(), r.header("Retry-After"))
+                throw ServiceException("HTTP ${r.code}")
+            }
+            val reader = r.body?.charStream() ?: return@use
+            val buf = CharArray(2048)
+            while (true) {
+                val n = reader.read(buf)
+                if (n < 0) break
+                val chunk = String(buf, 0, n)
+                if (chunk.contains("VECTOR_NOT_ALLOWED")) throw VectorNotAllowedException()
+                kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]?.let { if (!it.isActive) throw kotlinx.coroutines.CancellationException() }
+                onChunk(chunk)
+            }
+        } } finally { stop?.dispose() }
     }
 
     // ---------- plumbing ----------

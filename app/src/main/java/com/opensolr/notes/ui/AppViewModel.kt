@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.opensolr.notes.R
 import com.opensolr.notes.auth.OpensolrAuth
 import com.opensolr.notes.data.AppPrefs
 import com.opensolr.notes.data.Note
@@ -19,6 +20,7 @@ import com.opensolr.notes.net.OpensolrApi
 import com.opensolr.notes.net.SelfUpdate
 import com.opensolr.notes.net.SignInRequiredException
 import com.opensolr.notes.net.UpdateCheck
+import com.opensolr.notes.search.AiPrompt
 import com.opensolr.notes.search.Filters
 import com.opensolr.notes.search.Hit
 import com.opensolr.notes.search.NotesSearch
@@ -61,6 +63,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var updateError by mutableStateOf<String?>(null); private set
     /** Notes indexes of other phones found on the account; the reader picks one or starts fresh. */
     var indexChoices by mutableStateOf<List<String>?>(null); private set
+    /** AI Hints over the search results: null until asked, then the answer as it streams in. */
+    var aiText by mutableStateOf<String?>(null); private set
+    var aiRunning by mutableStateOf(false); private set
+    private var aiJob: Job? = null
 
     init {
         reload()
@@ -96,12 +102,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private var searchJob: Job? = null
 
-    fun search(typed: String) {
+    /** What is typed in the search box; the search itself runs on Enter or the check button. */
+    fun type(typed: String) {
+        query = typed
+        if (typed.isBlank()) { searchJob?.cancel(); stopAi(); hits = null; searching = false }
+    }
+
+    fun search(typed: String = query) {
         query = typed
         searchJob?.cancel()
+        stopAi()
         if (typed.isBlank()) { hits = null; searching = false; return }
         searchJob = viewModelScope.launch(Guard) {
-            delay(250)
             searching = true
             try {
                 val connection = withContext(Dispatchers.IO) { index.ensure() }
@@ -118,6 +130,50 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 searching = false
             }
         }
+    }
+
+    /** AI Hints: the question is the search, the documents are the notes it found, the answer streams in. */
+    fun askAi() {
+        val h = hits ?: return
+        val question = query.trim()
+        if (question.isBlank() || h.isEmpty()) return
+        aiJob?.cancel()
+        aiText = ""
+        aiRunning = true
+        val ctx = getApplication<Application>()
+        aiJob = viewModelScope.launch(Guard) {
+            val me = coroutineContext[Job]
+            try {
+                val notes = withContext(Dispatchers.IO) { db.byIds(h.take(AiPrompt.TOP_N).map { it.id }) }
+                val instruction = AiPrompt.instruction(AiPrompt.context(h, notes), question)
+                val raw = StringBuilder()
+                api.aiAnswer(prefs.indexName, instruction) { chunk ->
+                    if (aiJob !== me) return@aiAnswer
+                    raw.append(chunk)
+                    aiText = raw.toString()
+                }
+                if (aiJob === me && raw.isBlank()) aiText = ctx.getString(R.string.ai_no_answer)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: com.opensolr.notes.net.QuotaExceededException) {
+                aiText = ctx.getString(R.string.ai_off_quota)
+            } catch (e: com.opensolr.notes.net.VectorNotAllowedException) {
+                prefs.vectorAllowed = false
+                aiText = ctx.getString(R.string.ai_off_plan)
+            } catch (e: Exception) {
+                aiText = e.message ?: e.javaClass.simpleName
+            } finally {
+                if (aiJob === me) aiRunning = false
+            }
+        }
+    }
+
+    /** Stops the answer being written and clears it. */
+    fun stopAi() {
+        aiJob?.cancel()
+        aiJob = null
+        aiText = null
+        aiRunning = false
     }
 
     /** The notes a search found, in the order the index ranked them, with their snippets. */

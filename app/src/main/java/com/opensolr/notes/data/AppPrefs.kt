@@ -101,7 +101,7 @@ class AppPrefs(context: Context) {
 
     /** The Settings sections left open; the rest are folded. */
     var openSections: Set<String>
-        get() = sp.getStringSet("open_sections", null) ?: setOf("account")
+        get() = sp.getStringSet("open_sections", null) ?: emptySet()
         set(v) = sp.edit().putStringSet("open_sections", v).apply()
 
     fun savePending(kind: String, verifier: String, state: String) {

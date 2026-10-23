@@ -56,6 +56,13 @@ import com.opensolr.notes.ui.AppViewModel
 import com.opensolr.notes.ui.Chip
 import com.opensolr.notes.ui.Hairline
 import com.opensolr.notes.ui.IconBtn
+import com.opensolr.notes.ui.Markdown
+import com.opensolr.notes.ui.rememberPress
+import com.opensolr.notes.ui.tile
+import com.opensolr.notes.ui.tint
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.opensolr.notes.ui.Notice
 import com.opensolr.notes.ui.Screen
 import com.opensolr.notes.ui.TextBox
@@ -85,12 +92,15 @@ fun NotesScreen(vm: AppViewModel) {
             Box(Modifier.weight(1f).background(p.paper).padding(horizontal = 12.dp, vertical = 10.dp)) {
                 if (vm.query.isEmpty()) Text(stringResource(R.string.search_hint), style = MaterialTheme.typography.bodyMedium, color = p.muted)
                 TextBox(
-                    value = vm.query, onValueChange = { vm.search(it) }, singleLine = true,
+                    value = vm.query, onValueChange = { vm.type(it) }, singleLine = true,
                     textStyle = MaterialTheme.typography.bodyMedium.copy(color = p.ink), cursorBrush = SolidColor(p.accent),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    onImeAction = { vm.search() },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+            // Search runs on Enter or on the check; the X clears the box and the results
+            if (vm.query.isNotEmpty()) IconBtn(R.drawable.ic_check, { vm.search() }, strong = true)
             if (vm.query.isNotEmpty()) IconBtn(R.drawable.ic_close, { vm.search("") })
             IconBtn(R.drawable.ic_chevron_down, { showFilters = !showFilters }, tint = if (vm.filters != Filters()) p.accent else null)
         }
@@ -104,6 +114,10 @@ fun NotesScreen(vm: AppViewModel) {
             if (found != null) {
                 LazyColumn(Modifier.fillMaxSize()) {
                     if (found.isEmpty() && !vm.searching) item { Empty(stringResource(R.string.no_results)) }
+                    // AI Hints, as on the hosted search page: an answer to the search from the notes it found
+                    if (found.isNotEmpty() && vm.prefs.vectorAllowed) item(key = "ai") {
+                        AiHintsCard(vm.aiText, vm.aiRunning, onAsk = { vm.askAi() }, onClose = { vm.stopAi() })
+                    }
                     items(found, key = { it.first.id }) { (note, snippet) -> NoteRow(note, snippet, onOpen = { vm.open(note.id) }) }
                 }
             } else {
@@ -334,4 +348,34 @@ private fun IndexChoice(choices: List<String>, vm: AppViewModel) {
         com.opensolr.notes.ui.AccentButton(stringResource(R.string.index_choice_new), onClick = { vm.chooseIndex(null) }, modifier = Modifier.fillMaxWidth())
     }
     Hairline()
+}
+
+/** The AI Hints card of the search page: a button, then the answer as it streams in, with regenerate and close. */
+@Composable
+private fun AiHintsCard(answer: String?, answering: Boolean, onAsk: () -> Unit, onClose: () -> Unit) {
+    val p = LocalPalette.current
+    val view = LocalView.current
+    val corner = RoundedCornerShape(2.dp)
+    Column(Modifier.fillMaxWidth().padding(10.dp).background(p.band, corner).border(1.dp, p.hairline, corner).padding(12.dp)) {
+        if (answer == null && !answering) {
+            val press = rememberPress()
+            Row(
+                Modifier.tile(press, rim = p.accent) { Haptics.tick(view, true); onAsk() }.padding(horizontal = 12.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(painterResource(R.drawable.ic_ai), null, tint = press.tint(p.accent), modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(10.dp))
+                Text(stringResource(R.string.ai_hints), style = MaterialTheme.typography.labelLarge, color = press.tint(p.accent))
+            }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.ai_hints).uppercase(), style = MaterialTheme.typography.labelMedium, color = p.muted, modifier = Modifier.weight(1f))
+                IconBtn(R.drawable.ic_redo, onAsk, strong = true, enabled = !answering, contentDescription = stringResource(R.string.ai_regenerate))
+                IconBtn(R.drawable.ic_close, onClose, contentDescription = stringResource(R.string.ai_close))
+            }
+            Spacer(Modifier.height(2.dp))
+            if (answer.isNullOrBlank()) Text(stringResource(R.string.ai_thinking), style = MaterialTheme.typography.bodyMedium, color = p.muted)
+            else androidx.compose.foundation.text.selection.SelectionContainer { Markdown(answer) }
+        }
+    }
 }
