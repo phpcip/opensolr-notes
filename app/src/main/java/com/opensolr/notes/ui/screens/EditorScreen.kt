@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -108,6 +109,19 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
                 Text(stringResource(R.string.category), style = MaterialTheme.typography.labelMedium, color = p.muted, modifier = Modifier.padding(start = 12.dp))
                 Spacer(Modifier.width(4.dp))
                 Field(value = category, onChange = { category = it }, hint = stringResource(R.string.category_hint), modifier = Modifier.weight(1f))
+            }
+            // The categories already in use, narrowed by what is typed; a tap fills the field.
+            val suggestions = remember(category, vm.categories) {
+                val q = category.trim()
+                vm.categories.filter { it != q && (q.isEmpty() || it.contains(q, ignoreCase = true)) }.take(12)
+            }
+            if (suggestions.isNotEmpty()) {
+                Row(Modifier.fillMaxWidth().background(p.band).horizontalScroll(rememberScrollState()).padding(start = 12.dp, end = 12.dp, bottom = 8.dp)) {
+                    suggestions.forEach { c ->
+                        com.opensolr.notes.ui.Chip(c, selected = false) { category = c }
+                        Spacer(Modifier.width(6.dp))
+                    }
+                }
             }
             Hairline()
             if (existing != null) {
