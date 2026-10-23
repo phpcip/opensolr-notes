@@ -124,6 +124,8 @@ private val SpaceGrotesk = FontFamily(
 
 /** JetBrains Mono, bundled (SIL Open Font License, see third_party/jetbrains-mono/OFL.txt): the note's text, with a real bold and italic. */
 val NoteMono = FontFamily(
+    Font(R.font.jetbrains_mono_light, FontWeight.Light),
+    Font(R.font.jetbrains_mono_light_italic, FontWeight.Light, FontStyle.Italic),
     Font(R.font.jetbrains_mono_regular, FontWeight.Normal),
     Font(R.font.jetbrains_mono_italic, FontWeight.Normal, FontStyle.Italic),
     Font(R.font.jetbrains_mono_bold, FontWeight.Bold),

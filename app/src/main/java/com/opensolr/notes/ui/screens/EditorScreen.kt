@@ -124,8 +124,8 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
             Hairline()
             CategoryField(category, vm.categories, onChange = { category = it })
             Hairline()
-            // normal weight on purpose: the app's body text is Medium, which reads as bold in a monospace face
-            val mono = MaterialTheme.typography.bodyMedium.copy(color = p.ink, fontFamily = NoteMono, fontWeight = FontWeight.Normal, lineHeight = MaterialTheme.typography.bodyMedium.fontSize * 1.6f)
+            // the light cut on purpose: the regular JetBrains Mono reads as bold, and B must stand out from it
+            val mono = MaterialTheme.typography.bodyMedium.copy(color = p.ink, fontFamily = NoteMono, fontWeight = FontWeight.Light, lineHeight = MaterialTheme.typography.bodyMedium.fontSize * 1.6f)
             var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
             val multiTap = remember { MultiTap() }
             Box(Modifier.fillMaxWidth().heightIn(min = 260.dp).padding(horizontal = 12.dp, vertical = 11.dp)) {
