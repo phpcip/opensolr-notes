@@ -74,7 +74,7 @@ fun NotesScreen(vm: AppViewModel) {
     Column(Modifier.fillMaxSize()) {
         TopBar(stringResource(R.string.app_name)) {
             // sync or search in progress
-            if (vm.syncing || vm.searching) androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), color = p.accent, strokeWidth = 2.dp)
+            if (vm.searching && !vm.syncing) androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), color = p.accent, strokeWidth = 2.dp)
             IconBtn(R.drawable.ic_add, { vm.open(null) }, strong = true)
             IconBtn(R.drawable.ic_settings, { vm.go(Screen.Settings) })
         }
