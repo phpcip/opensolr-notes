@@ -76,15 +76,18 @@ fun NotesScreen(vm: AppViewModel) {
         vm.problem?.let { Notice(it); Hairline() }
         vm.indexChoices?.let { IndexChoice(it, vm) }
         val found = if (vm.hits != null) vm.found() else null
-        if (found != null) {
-            if (found.isEmpty() && !vm.searching) Empty(stringResource(R.string.no_results))
-            LazyColumn(Modifier.fillMaxSize()) {
-                items(found, key = { it.first.id }) { (note, snippet) -> NoteRow(note, snippet) { vm.go(Screen.Editor(note.id)) } }
-            }
-        } else {
-            if (vm.notes.isEmpty()) Empty(stringResource(R.string.no_notes))
-            LazyColumn(Modifier.fillMaxSize()) {
-                items(vm.notes, key = { it.id }) { note -> NoteRow(note, null) { vm.go(Screen.Editor(note.id)) } }
+        // Pull down: the index is synced (changes from the web editor or another phone come in) and the list reloads.
+        com.opensolr.notes.ui.RefreshBox(refreshing = vm.syncing, onRefresh = { vm.syncNow(); if (vm.query.isNotBlank()) vm.search(vm.query) }, modifier = Modifier.fillMaxSize()) {
+            if (found != null) {
+                LazyColumn(Modifier.fillMaxSize()) {
+                    if (found.isEmpty() && !vm.searching) item { Empty(stringResource(R.string.no_results)) }
+                    items(found, key = { it.first.id }) { (note, snippet) -> NoteRow(note, snippet) { vm.go(Screen.Editor(note.id)) } }
+                }
+            } else {
+                LazyColumn(Modifier.fillMaxSize()) {
+                    if (vm.notes.isEmpty()) item { Empty(stringResource(R.string.no_notes)) }
+                    items(vm.notes, key = { it.id }) { note -> NoteRow(note, null) { vm.go(Screen.Editor(note.id)) } }
+                }
             }
         }
     }
