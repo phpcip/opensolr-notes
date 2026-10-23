@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
@@ -77,6 +79,37 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
     var category by remember { mutableStateOf(existing?.category.orEmpty()) }
     var confirmDelete by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
+    // Undo and redo over the text: a run of typing is one step, a format change or a paste its own
+    val undo = remember { ArrayDeque<TextFieldValue>() }
+    val redo = remember { ArrayDeque<TextFieldValue>() }
+    var undoCount by remember { mutableStateOf(0) }
+    var redoCount by remember { mutableStateOf(0) }
+    var lastEditAt by remember { mutableStateOf(0L) }
+    fun remember(previous: TextFieldValue, coalesce: Boolean) {
+        val now = System.currentTimeMillis()
+        if (!(coalesce && now - lastEditAt < 700 && undo.isNotEmpty())) {
+            undo.addLast(previous)
+            if (undo.size > 200) undo.removeFirst()
+        }
+        lastEditAt = now
+        redo.clear()
+        undoCount = undo.size; redoCount = 0
+    }
+    fun edit(v: TextFieldValue) {
+        if (v.text != body.text) remember(body, coalesce = kotlin.math.abs(v.text.length - body.text.length) == 1)
+        body = v
+    }
+    fun undoNow() {
+        val prev = undo.removeLastOrNull() ?: return
+        redo.addLast(body); body = prev; lastEditAt = 0L
+        undoCount = undo.size; redoCount = redo.size
+    }
+    fun redoNow() {
+        val next = redo.removeLastOrNull() ?: return
+        undo.addLast(body); body = next; lastEditAt = 0L
+        undoCount = undo.size; redoCount = redo.size
+    }
+    var wrap by remember { mutableStateOf(vm.prefs.wordWrap) }
     LaunchedEffect(Unit) { vm.ready(); if (existing == null) runCatching { focus.requestFocus() } }
 
     fun saveAndClose() {
@@ -98,6 +131,7 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
         // the pair the selection sits in, if any: the last open before it with no close in between, and the first close after it
         val openAt = t.lastIndexOf(open, s - 1).takeIf { it >= 0 && t.indexOf(close, it).let { c -> c < 0 || c >= s } }
         val closeAt = if (openAt != null) t.indexOf(close, maxOf(e, openAt + open.length)) else -1
+        remember(v, coalesce = false)
         body = if (openAt != null && closeAt >= 0) {
             val before = t.substring(openAt + open.length, s)
             val sel = t.substring(s, e)
@@ -118,7 +152,10 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
             IconBtn(R.drawable.ic_check, { saveAndClose() }, strong = true, enabled = body.text.isNotBlank())
         }
         // The B / I / U row stays put under the top bar while the note scrolls.
-        FormatRow(onTag = { mark(it) })
+        FormatRow(
+            onTag = { mark(it) }, wrap = wrap, onWrap = { wrap = !wrap; vm.prefs.wordWrap = wrap },
+            canUndo = undoCount > 0, canRedo = redoCount > 0, onUndo = { undoNow() }, onRedo = { redoNow() },
+        )
         Hairline()
         // Title and category stay put; the text takes the rest of the screen and scrolls inside its own box
         Column(Modifier.fillMaxSize()) {
@@ -151,12 +188,15 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
             Box(Modifier.fillMaxWidth().weight(1f).padding(horizontal = 12.dp, vertical = 11.dp).onSizeChanged { viewportH = it.height }) {
                 if (body.text.isEmpty()) Text(stringResource(R.string.text_hint), style = mono.copy(color = p.muted))
                 BasicTextField(
-                    value = body, onValueChange = { body = it },
+                    value = body, onValueChange = { edit(it) },
                     textStyle = mono, cursorBrush = SolidColor(p.accent),
                     visualTransformation = Marks.transformation,
                     onTextLayout = { layout = it },
                     keyboardOptions = textKeyboard(false),
-                    modifier = Modifier.fillMaxSize().verticalScroll(scroll).focusRequester(focus)
+                    modifier = Modifier.fillMaxSize().verticalScroll(scroll)
+                        // word wrap off: lines run on and the field scrolls sideways
+                        .then(if (wrap) Modifier else Modifier.horizontalScroll(rememberScrollState()))
+                        .focusRequester(focus)
                         // double tap selects the word, triple tap the paragraph; seen after the field placed its cursor
                         .pointerInput(Unit) {
                             awaitEachGesture {
@@ -244,10 +284,19 @@ fun CategoryField(value: String, categories: List<String>, onChange: (String) ->
     }
 }
 
-/** B, I, U: wrap (or unwrap) the selected text in <b>, <i>, <u>, the marks the index keeps. */
+/** B, I, U, then the word-wrap switch, then undo and redo. */
 @Composable
-private fun FormatRow(onTag: (String) -> Unit) {
+private fun FormatRow(onTag: (String) -> Unit, wrap: Boolean, onWrap: () -> Unit, canUndo: Boolean, canRedo: Boolean, onUndo: () -> Unit, onRedo: () -> Unit) {
     val p = LocalPalette.current
+    @Composable fun IconBox(icon: Int, enabled: Boolean, on: Boolean = false, onClick: () -> Unit) {
+        Box(
+            Modifier.size(40.dp, 34.dp).border(1.dp, if (on) p.accent else p.hairline).then(if (enabled) Modifier.hapticClickable { onClick() } else Modifier),
+            contentAlignment = Alignment.Center,
+        ) {
+            androidx.compose.material3.Icon(painterResource(icon), contentDescription = null, tint = if (!enabled) p.muted else if (on) p.accent else p.ink, modifier = Modifier.size(20.dp))
+        }
+        Spacer(Modifier.width(6.dp))
+    }
     Row(Modifier.fillMaxWidth().background(p.band).padding(horizontal = 12.dp, vertical = 6.dp)) {
         listOf("b", "i", "u").forEach { tag ->
             Box(
@@ -265,5 +314,10 @@ private fun FormatRow(onTag: (String) -> Unit) {
             }
             Spacer(Modifier.width(6.dp))
         }
+        Spacer(Modifier.width(6.dp))
+        IconBox(R.drawable.ic_wrap, enabled = true, on = wrap, onClick = onWrap)
+        Spacer(Modifier.width(6.dp))
+        IconBox(R.drawable.ic_undo, enabled = canUndo, onClick = onUndo)
+        IconBox(R.drawable.ic_redo, enabled = canRedo, onClick = onRedo)
     }
 }

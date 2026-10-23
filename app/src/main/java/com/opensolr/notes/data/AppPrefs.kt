@@ -78,6 +78,11 @@ class AppPrefs(context: Context) {
         get() = sp.getLong(K_PULL, 0L)
         set(v) = sp.edit().putLong(K_PULL, v).apply()
 
+    /** Long lines wrap in the editor (off: they run on, scrolled sideways). */
+    var wordWrap: Boolean
+        get() = sp.getBoolean("word_wrap", true)
+        set(v) = sp.edit().putBoolean("word_wrap", v).apply()
+
     var haptics: Boolean
         get() = sp.getBoolean("haptics", true)
         set(v) = sp.edit().putBoolean("haptics", v).apply()
