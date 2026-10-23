@@ -148,7 +148,8 @@ fun CategoryField(value: String, categories: List<String>, onChange: (String) ->
         Box(Modifier.fillMaxWidth().onFocusChanged { focused = it.hasFocus; if (it.hasFocus) { dismissed = false; typed = false } }) {
             Field(value = value, onChange = { onChange(it); dismissed = false; typed = true }, hint = hint, modifier = Modifier.fillMaxWidth())
             DropdownMenu(expanded = focused && !dismissed && options.isNotEmpty(), onDismissRequest = { dismissed = true }, properties = androidx.compose.ui.window.PopupProperties(focusable = false)) {
-                options.forEach { c ->
+                options.forEachIndexed { i, c ->
+                    if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(p.hairline))
                     DropdownMenuItem(text = { Text(c, color = p.ink) }, onClick = { onChange(c); dismissed = true; focusManager.clearFocus() })
                 }
             }
