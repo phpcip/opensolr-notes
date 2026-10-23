@@ -79,17 +79,25 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
         vm.back()
     }
 
-    /** Wraps the selection in a mark, or unwraps it when it already carries that mark. */
+    /**
+     * B / I / U toggle: a selection inside a pair of that mark loses the pair, anything else gets wrapped.
+     * With no selection, an empty pair is opened and the cursor put inside, so what is typed next carries the mark.
+     */
     fun mark(tag: String) {
         val v = body
+        val t = v.text
         val s = v.selection.min; val e = v.selection.max
         val open = "<$tag>"; val close = "</$tag>"
-        val inner = v.text.substring(s, e)
-        body = if (inner.startsWith(open) && inner.endsWith(close) && inner.length >= open.length + close.length) {
-            val bare = inner.substring(open.length, inner.length - close.length)
-            TextFieldValue(v.text.substring(0, s) + bare + v.text.substring(e), TextRange(s, s + bare.length))
+        // the pair the selection sits in, if any: the last open before it with no close in between, and the first close after it
+        val openAt = t.lastIndexOf(open, s - 1).takeIf { it >= 0 && t.indexOf(close, it) .let { c -> c < 0 || c >= s } }
+        val closeAt = if (openAt != null) t.indexOf(close, maxOf(e, openAt + open.length)) else -1
+        body = if (openAt != null && closeAt >= 0) {
+            val inner = t.substring(openAt + open.length, closeAt)
+            val newText = t.substring(0, openAt) + inner + t.substring(closeAt + close.length)
+            TextFieldValue(newText, TextRange((s - open.length).coerceAtLeast(openAt), (e - open.length).coerceIn(openAt, openAt + inner.length)))
         } else {
-            TextFieldValue(v.text.substring(0, s) + open + inner + close + v.text.substring(e), TextRange(s + open.length, s + open.length + inner.length))
+            val inner = t.substring(s, e)
+            TextFieldValue(t.substring(0, s) + open + inner + close + t.substring(e), TextRange(s + open.length, s + open.length + inner.length))
         }
     }
 
