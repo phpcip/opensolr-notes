@@ -78,22 +78,23 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
             if (existing != null) IconBtn(R.drawable.ic_delete, { confirmDelete = true })
             IconBtn(R.drawable.ic_check, { saveAndClose() }, strong = true, enabled = text.isNotBlank())
         }
+        // The B / I / U row stays put under the top bar while the note scrolls.
+        FormatRow(onTag = { tag -> body.edit {
+            val sel = selection
+            val open = "<$tag>"; val close = "</$tag>"
+            val inner = asCharSequence().substring(sel.min, sel.max)
+            if (inner.startsWith(open) && inner.endsWith(close) && inner.length >= open.length + close.length) {
+                replace(sel.min, sel.max, inner.substring(open.length, inner.length - close.length))
+                selection = TextRange(sel.min, sel.max - open.length - close.length)
+            } else {
+                insert(sel.max, close)
+                insert(sel.min, open)
+                selection = TextRange(sel.min + open.length, sel.max + open.length)
+            }
+        } })
+        Hairline()
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Field(value = title, onChange = { title = it }, hint = stringResource(R.string.title_hint), modifier = Modifier.fillMaxWidth())
-            Hairline()
-            FormatRow(onTag = { tag -> body.edit {
-                val sel = selection
-                val open = "<$tag>"; val close = "</$tag>"
-                val inner = asCharSequence().substring(sel.min, sel.max)
-                if (inner.startsWith(open) && inner.endsWith(close) && inner.length >= open.length + close.length) {
-                    replace(sel.min, sel.max, inner.substring(open.length, inner.length - close.length))
-                    selection = TextRange(sel.min, sel.max - open.length - close.length)
-                } else {
-                    insert(sel.max, close)
-                    insert(sel.min, open)
-                    selection = TextRange(sel.min + open.length, sel.max + open.length)
-                }
-            } })
             Hairline()
             val mono = MaterialTheme.typography.bodyMedium.copy(color = p.ink, fontFamily = FontFamily.Monospace, lineHeight = MaterialTheme.typography.bodyMedium.fontSize * 1.6f)
             Box(Modifier.fillMaxWidth().heightIn(min = 260.dp).padding(horizontal = 12.dp, vertical = 11.dp)) {
