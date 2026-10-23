@@ -34,6 +34,8 @@ class NoteSync(private val context: Context) {
     /** Sends every unsynced note, then pulls what other phones wrote. Returns what went wrong, if anything. */
     suspend fun run(): String? = lock.withLock {
         if (!prefs.signedIn) return@withLock null
+        // Every sync reads the index again, so a Search Tuning changed in the Control Panel reaches the app
+        NotesIndex.refresh()
         val connection = index.ensure()
         val solr = SolrClient(connection)
         var problem: String? = null

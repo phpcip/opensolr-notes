@@ -22,12 +22,20 @@ class NotesSearch(private val prefs: AppPrefs, private val api: OpensolrApi) {
         if (q.isEmpty()) return emptyList()
         val p = ArrayList<Pair<String, String>>()
         p += "uq" to q
-        val lexical = "{!edismax qf=\"$QF\" mm=\"$MM\" sow=true v=\$uq}"
+        // The index's Search Tuning, as the hosted search page applies it: the same qf, mm, alpha, topN and mode
+        val t = connection.tuning
+        val fw = t.optJSONObject("field_weights")
+        val qf = if (fw != null && fw.length() > 0) fw.keys().asSequence().joinToString(" ") { f -> f + "^" + num(fw.optDouble(f)) } else QF
+        val mm = t.optString("mm").ifBlank { MM }
+        val topK = t.optInt("vector_topk", TOP_K)
+        val mode = t.optString("bool_mode").ifBlank { "union" }
+        val alpha = num(Math.round((1.0 - t.optDouble("lexical_weight", 0.5).coerceIn(0.0, 1.0)) * 1000.0) / 1000.0)
+        val lexical = "{!edismax qf=\"$qf\" mm=\"$mm\" v=\$uq}"
         val vector = if (prefs.aiSearch && prefs.vectorAllowed && q.length >= 2) vectorOf(connection.indexName, q) else null
         val matched = if (vector != null) {
-            p += "vectorQuery" to "{!knn f=embeddings topK=$TOP_K}" + vector.joinToString(",", "[", "]")
+            p += "vectorQuery" to "{!knn f=embeddings topK=$topK}" + vector.joinToString(",", "[", "]")
             p += "lexicalRaw" to lexical
-            "{!hybrid lexical=\$lexicalRaw vector=\$vectorQuery mode=union alpha=0.5 topN=$TOP_K}"
+            "{!hybrid lexical=\$lexicalRaw vector=\$vectorQuery mode=$mode alpha=$alpha topN=$topK}"
         } else lexical
         p += "q" to matched
         p += "fq" to "source_s:opensolr-notes"
@@ -40,7 +48,7 @@ class NotesSearch(private val prefs: AppPrefs, private val api: OpensolrApi) {
         p += "fl" to "id,score"
         p += "rows" to rows.toString()
         p += "hl" to "true"
-        p += "hl.q" to "{!edismax qf=\"$QF\" mm=0 sow=true v=\$uq}"
+        p += "hl.q" to "{!edismax qf=\"$qf\" mm=0 v=\$uq}"
         p += "hl.fl" to "text,title"
         p += "hl.method" to "unified"
         p += "hl.defaultSummary" to "true"
@@ -72,9 +80,13 @@ class NotesSearch(private val prefs: AppPrefs, private val api: OpensolrApi) {
         null
     }
 
+    /** A number as Solr local params take it: no exponent, no trailing zeros. */
+    private fun num(d: Double): String = java.math.BigDecimal(d).stripTrailingZeros().toPlainString()
+
     companion object {
-        const val QF = "title^3 description^2 text category^2"
-        const val MM = "2<75%"
-        const val TOP_K = 60
+        // Used only until the index's own Search Tuning has been read
+        const val QF = "title^0.1 description^0.1 uri^0.1 text^5 text_t^5"
+        const val MM = "2<90% 5<75% 8<60% 12<50%"
+        const val TOP_K = 1000
     }
 }

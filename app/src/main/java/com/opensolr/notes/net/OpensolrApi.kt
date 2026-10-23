@@ -12,13 +12,17 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 
-data class IndexConnection(val indexName: String, val baseUrl: String, val username: String, val password: String) {
-    fun toJson(): String = JSONObject().put("name", indexName).put("url", baseUrl).put("user", username).put("pass", password).toString()
+/**
+ * The index and its Search Tuning as Opensolr gives them: the app searches with exactly the query the hosted search
+ * page builds from the same values (the defaults of a notes index, then what is saved on the index).
+ */
+data class IndexConnection(val indexName: String, val baseUrl: String, val username: String, val password: String, val tuning: JSONObject = JSONObject()) {
+    fun toJson(): String = JSONObject().put("name", indexName).put("url", baseUrl).put("user", username).put("pass", password).put("tuning", tuning).toString()
 
     companion object {
         fun fromJson(s: String): IndexConnection? = runCatching {
             val o = JSONObject(s)
-            IndexConnection(o.getString("name"), o.getString("url"), o.getString("user"), o.getString("pass"))
+            IndexConnection(o.getString("name"), o.getString("url"), o.getString("user"), o.getString("pass"), o.optJSONObject("tuning") ?: JSONObject())
         }.getOrNull()?.takeIf { it.baseUrl.startsWith("https://") }
     }
 }
@@ -98,7 +102,7 @@ class OpensolrApi(private val prefs: AppPrefs) {
         val info = json.optJSONObject("msg")?.optJSONObject("info") ?: throw ServiceException("No connection details")
         val base = info.optString("connection_url")
         if (!base.startsWith("https://")) throw ServiceException("The index has no HTTPS address")
-        IndexConnection(name, base, info.optString("auth_username"), info.optString("auth_password"))
+        IndexConnection(name, base, info.optString("auth_username"), info.optString("auth_password"), info.optJSONObject("search_tuning") ?: JSONObject())
     }
 
     /** Puts the hosted search page (search.opensolr.com/<index>) behind the index's own HTTP user and password. */

@@ -110,5 +110,8 @@ class NotesIndex(context: Context) {
 
         @Volatile
         private var verified: String? = null
+
+        /** The index is read again from Opensolr at the next use: its Search Tuning may have changed. */
+        fun refresh() { verified = null }
     }
 }
