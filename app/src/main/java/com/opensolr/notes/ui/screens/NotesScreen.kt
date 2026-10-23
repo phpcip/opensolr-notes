@@ -58,7 +58,7 @@ fun NotesScreen(vm: AppViewModel) {
         TopBar(stringResource(R.string.app_name)) {
             // sync or search in progress
             if (vm.syncing || vm.searching) androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), color = p.accent, strokeWidth = 2.dp)
-            IconBtn(R.drawable.ic_add, { vm.go(Screen.Editor(null)) }, strong = true)
+            IconBtn(R.drawable.ic_add, { vm.open(null) }, strong = true)
             IconBtn(R.drawable.ic_settings, { vm.go(Screen.Settings) })
         }
         Row(Modifier.fillMaxWidth().background(p.band).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -84,12 +84,12 @@ fun NotesScreen(vm: AppViewModel) {
             if (found != null) {
                 LazyColumn(Modifier.fillMaxSize()) {
                     if (found.isEmpty() && !vm.searching) item { Empty(stringResource(R.string.no_results)) }
-                    items(found, key = { it.first.id }) { (note, snippet) -> NoteRow(note, snippet) { vm.go(Screen.Editor(note.id)) } }
+                    items(found, key = { it.first.id }) { (note, snippet) -> NoteRow(note, snippet) { vm.open(note.id) } }
                 }
             } else {
                 LazyColumn(Modifier.fillMaxSize()) {
                     if (vm.notes.isEmpty()) item { Empty(stringResource(R.string.no_notes)) }
-                    items(vm.notes, key = { it.id }) { note -> NoteRow(note, null) { vm.go(Screen.Editor(note.id)) } }
+                    items(vm.notes, key = { it.id }) { note -> NoteRow(note, null) { vm.open(note.id) } }
                 }
             }
         }

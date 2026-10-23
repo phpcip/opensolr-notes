@@ -38,6 +38,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
+import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
@@ -70,13 +76,12 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
     var category by remember { mutableStateOf(existing?.category.orEmpty()) }
     var confirmDelete by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { if (existing == null) runCatching { focus.requestFocus() } }
+    LaunchedEffect(Unit) { vm.ready(); if (existing == null) runCatching { focus.requestFocus() } }
 
     fun saveAndClose() {
         val text = body.text
         val changed = existing == null || existing.title != title.trim() || existing.text != text || existing.category != category.trim()
-        if (text.isNotBlank() && changed) vm.save(existing?.id, title, text, category)
-        vm.back()
+        if (text.isNotBlank() && changed) vm.save(existing?.id, title, text, category) else vm.back()
     }
 
     /**
@@ -121,14 +126,42 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
             Hairline()
             // normal weight on purpose: the app's body text is Medium, which reads as bold in a monospace face
             val mono = MaterialTheme.typography.bodyMedium.copy(color = p.ink, fontFamily = NoteMono, fontWeight = FontWeight.Normal, lineHeight = MaterialTheme.typography.bodyMedium.fontSize * 1.6f)
+            var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+            val multiTap = remember { MultiTap() }
             Box(Modifier.fillMaxWidth().heightIn(min = 260.dp).padding(horizontal = 12.dp, vertical = 11.dp)) {
                 if (body.text.isEmpty()) Text(stringResource(R.string.text_hint), style = mono.copy(color = p.muted))
                 BasicTextField(
                     value = body, onValueChange = { body = it },
                     textStyle = mono, cursorBrush = SolidColor(p.accent),
                     visualTransformation = Marks.transformation,
+                    onTextLayout = { layout = it },
                     keyboardOptions = textKeyboard(false),
-                    modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                    modifier = Modifier.fillMaxWidth().focusRequester(focus)
+                        // double tap selects the word, triple tap the paragraph; seen after the field placed its cursor
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Final)
+                                val count = multiTap.tap(down.position, down.uptimeMillis, viewConfiguration.doubleTapTimeoutMillis, viewConfiguration.touchSlop * 2)
+                                var up: PointerInputChange? = null
+                                while (up == null) {
+                                    val ev = awaitPointerEvent(PointerEventPass.Final)
+                                    val c = ev.changes.firstOrNull { it.id == down.id } ?: return@awaitEachGesture
+                                    if (c.positionChanged() && (c.position - down.position).getDistance() > viewConfiguration.touchSlop) return@awaitEachGesture
+                                    if (c.changedToUpIgnoreConsumed()) up = c
+                                }
+                                if (count < 2) return@awaitEachGesture
+                                val l = layout ?: return@awaitEachGesture
+                                val (shown, map) = Marks.render(body.text)
+                                val at = l.getOffsetForPosition(down.position).coerceIn(0, shown.length)
+                                val word = l.getWordBoundary(at)
+                                // the paragraph: the text between the surrounding line breaks
+                                val ps = shown.text.lastIndexOf('\n', at - 1) + 1
+                                val pe = shown.text.indexOf('\n', at).let { if (it < 0) shown.length else it }
+                                val range = if (count == 2 && word.end > word.start) word else TextRange(ps, pe)
+                                val s0 = Marks.toOriginal(map, range.start); val e0 = Marks.toOriginal(map, range.end)
+                                if (e0 > s0) body = body.copy(selection = TextRange(s0, e0))
+                            }
+                        },
                 )
             }
             Hairline()
@@ -142,8 +175,20 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
         ConfirmDialog(
             title = stringResource(R.string.delete_note_q), text = stringResource(R.string.delete_note_text), action = stringResource(R.string.delete),
             onDismiss = { confirmDelete = false },
-            onConfirm = { confirmDelete = false; vm.delete(existing.id); vm.back() },
+            onConfirm = { confirmDelete = false; vm.delete(existing.id) },
         )
+    }
+}
+
+/** Counts taps that land close together in space and time: 1, 2, 3… */
+private class MultiTap {
+    private var count = 0
+    private var at = androidx.compose.ui.geometry.Offset.Zero
+    private var time = 0L
+    fun tap(pos: androidx.compose.ui.geometry.Offset, now: Long, timeout: Long, slop: Float): Int {
+        count = if (now - time <= timeout && (pos - at).getDistance() <= slop) count + 1 else 1
+        at = pos; time = now
+        return count
     }
 }
 

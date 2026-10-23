@@ -53,6 +53,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var hits by mutableStateOf<List<Hit>?>(null); private set
     var searching by mutableStateOf(false); private set
     var syncing by mutableStateOf(false); private set
+    /** A spinner over the whole screen while an action runs (opening, saving, deleting a note). */
+    var busy by mutableStateOf(false); private set
     var problem by mutableStateOf<String?>(null); private set
     var update by mutableStateOf<UpdateCheck.Update?>(null); private set
     var updateProgress by mutableStateOf<Int?>(null); private set
@@ -67,6 +69,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun go(s: Screen) { screen = s }
+
+    /** The editor for one note (or a new one): the spinner shows until the editor is on screen. */
+    fun open(id: String?) { busy = true; screen = Screen.Editor(id) }
+
+    fun ready() { busy = false }
 
     fun back() {
         screen = if (signedIn) Screen.Notes else Screen.Setup
@@ -120,17 +127,27 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         return h.mapNotNull { hit -> byId[hit.id]?.takeIf { !it.deleted }?.let { it to hit.snippet } }
     }
 
-    fun save(id: String?, title: String, text: String, category: String): Note {
-        val note = db.save(id, title, text, category)
-        reload()
-        syncNow()
-        return note
+    /** Writes the note, then goes back to the list; the spinner covers the write. */
+    fun save(id: String?, title: String, text: String, category: String) {
+        busy = true
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { db.save(id, title, text, category) }
+            reload()
+            back()
+            busy = false
+            syncNow()
+        }
     }
 
     fun delete(id: String) {
-        db.delete(id)
-        reload()
-        syncNow()
+        busy = true
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { db.delete(id) }
+            reload()
+            back()
+            busy = false
+            syncNow()
+        }
     }
 
     fun syncNow() {

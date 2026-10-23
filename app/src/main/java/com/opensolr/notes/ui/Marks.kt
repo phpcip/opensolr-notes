@@ -48,6 +48,16 @@ object Marks {
 
     fun plainStyled(text: String): AnnotatedString = render(text).first
 
+    /** The original offset for a rendered one: the last original offset mapping at or before it. */
+    fun toOriginal(map: IntArray, offset: Int): Int {
+        var lo = 0; var hi = map.size - 1
+        while (lo < hi) {
+            val mid = (lo + hi + 1) / 2
+            if (map[mid] <= offset) lo = mid else hi = mid - 1
+        }
+        return lo
+    }
+
     private fun styleOf(t: Char) = when (t) {
         'b' -> SpanStyle(fontWeight = FontWeight.Bold)
         'i' -> SpanStyle(fontStyle = FontStyle.Italic)
