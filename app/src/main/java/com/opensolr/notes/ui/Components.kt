@@ -313,7 +313,7 @@ private const val EM_CLOSE = "\uE001"
 private val HTML_TAG = Regex("</?[A-Za-z][A-Za-z0-9-]*(\\s[^<>]*)?/?>")
 
 /** Every date the app shows: mm/dd/yyyy hh:mm:ss. */
-fun fmtDate(ms: Long): String = if (ms <= 0) "" else SimpleDateFormat("MM/dd/yyyy HH:mm:ss", Locale.US).format(Date(ms))
+fun fmtDate(ms: Long): String = if (ms <= 0) "" else SimpleDateFormat("EEE, dd MMM. yyyy - HH:mm:ss", Locale.US).format(Date(ms))
 
 fun fmtSize(bytes: Long): String = when {
     bytes >= 1_048_576 -> String.format(Locale.US, "%.1f MB", bytes / 1_048_576.0)
