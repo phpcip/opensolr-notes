@@ -104,8 +104,8 @@ fun NotesScreen(vm: AppViewModel) {
                     items(found, key = { it.first.id }) { (note, snippet) -> NoteRow(note, snippet, onOpen = { vm.open(note.id) }) }
                 }
             } else {
-                // Swipe right pins (or unpins) a note, swipe left deletes it after a confirmation; the grip at the right
-                // drags it to another place. Pins and order live on this phone only.
+                // Swipe left deletes a note after a confirmation; the grip at the right drags it to another place.
+                // The order lives on this phone only.
                 var confirmDelete by remember { mutableStateOf<String?>(null) }
                 val listState = androidx.compose.foundation.lazy.rememberLazyListState()
                 val scope = rememberCoroutineScope()
@@ -147,7 +147,6 @@ fun NotesScreen(vm: AppViewModel) {
                         ) {
                             SwipeRow(
                                 note = note,
-                                onPin = { vm.togglePin(note.id) },
                                 onDelete = { confirmDelete = note.id },
                             ) {
                                 NoteRow(note, null, onOpen = { vm.open(note.id) }) {
@@ -208,36 +207,29 @@ private fun FilterRow(vm: AppViewModel) {
     }
 }
 
-/** The row with its swipe actions: to the right, pin or unpin (orange); to the left, delete (asks first). */
+/** The row with its swipe action: to the left, delete (asks first). */
 @Composable
-private fun SwipeRow(note: Note, onPin: () -> Unit, onDelete: () -> Unit, content: @Composable () -> Unit) {
+private fun SwipeRow(note: Note, onDelete: () -> Unit, content: @Composable () -> Unit) {
     val p = LocalPalette.current
     val view = LocalView.current
     val state = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
-            when (value) {
-                SwipeToDismissBoxValue.StartToEnd -> { Haptics.tick(view, true); onPin() }
-                SwipeToDismissBoxValue.EndToStart -> { Haptics.tick(view, true); onDelete() }
-                else -> {}
-            }
-            // the row always springs back: the pin shows in the row, the delete waits for the dialog
+            if (value == SwipeToDismissBoxValue.EndToStart) { Haptics.tick(view, true); onDelete() }
+            // the row always springs back: the delete waits for the dialog
             false
         },
         positionalThreshold = { it * 0.35f },
     )
     SwipeToDismissBox(
         state = state,
+        enableDismissFromStartToEnd = false,
         backgroundContent = {
-            val toRight = state.dismissDirection == SwipeToDismissBoxValue.StartToEnd
             Row(
-                Modifier.fillMaxSize().background(if (toRight) p.accent else p.ink).padding(horizontal = 20.dp),
-                horizontalArrangement = if (toRight) Arrangement.Start else Arrangement.End,
+                Modifier.fillMaxSize().background(p.ink).padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    if (toRight) stringResource(if (note.pinned) R.string.unpin else R.string.pin) else stringResource(R.string.delete),
-                    style = MaterialTheme.typography.labelLarge, color = p.paper,
-                )
+                Text(stringResource(R.string.delete), style = MaterialTheme.typography.labelLarge, color = p.paper)
             }
         },
     ) {
@@ -262,10 +254,6 @@ private fun NoteRow(note: Note, snippet: String?, onOpen: () -> Unit, trailing: 
         Spacer(Modifier.height(5.dp))
         // date, category and state: wrapped to a second line when the row is too narrow, never cut
         androidx.compose.foundation.layout.FlowRow(verticalArrangement = Arrangement.Center) {
-            if (note.pinned) {
-                Text(stringResource(R.string.pinned), style = MaterialTheme.typography.labelSmall, color = p.accent)
-                Spacer(Modifier.width(10.dp))
-            }
             Text(fmtDate(note.createdAt), style = MaterialTheme.typography.labelSmall, color = p.muted)
             if (note.category.isNotBlank()) {
                 Spacer(Modifier.width(10.dp))

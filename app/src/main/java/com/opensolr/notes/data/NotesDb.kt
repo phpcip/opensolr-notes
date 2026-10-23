@@ -15,8 +15,6 @@ data class Note(
     val updatedAt: Long,
     val synced: Boolean,
     val deleted: Boolean,
-    /** Kept at the top of the list on this phone. */
-    val pinned: Boolean = false,
     /** The place in this phone's own order; 0 = by date. */
     val position: Int = 0,
 ) {
@@ -65,12 +63,8 @@ class NotesDb(context: Context) : SQLiteOpenHelper(context.applicationContext, "
         }
     }
 
-    /** Pinned first; new notes (no place yet) newest first; then the phone's own order. */
-    private val ORDER_SQL = "pinned DESC, CASE WHEN position > 0 THEN 1 ELSE 0 END, position ASC, created_at DESC"
-
-    fun setPinned(id: String, pinned: Boolean) {
-        writableDatabase.update("note", ContentValues().apply { put("pinned", if (pinned) 1 else 0) }, "id = ?", arrayOf(id))
-    }
+    /** New notes (no place yet) newest first; then the phone's own order. */
+    private val ORDER_SQL = "CASE WHEN position > 0 THEN 1 ELSE 0 END, position ASC, created_at DESC"
 
     /** The phone's order of all its notes, as listed: every note gets its place, so a later move keeps the rest where they are. */
     fun setOrder(ids: List<String>) {
@@ -119,7 +113,6 @@ class NotesDb(context: Context) : SQLiteOpenHelper(context.applicationContext, "
             updatedAt = now,
             synced = false,
             deleted = false,
-            pinned = existing?.pinned ?: false,
             position = existing?.position ?: 0,
         )
         writableDatabase.insertWithOnConflict("note", null, values(note), SQLiteDatabase.CONFLICT_REPLACE)
@@ -146,7 +139,7 @@ class NotesDb(context: Context) : SQLiteOpenHelper(context.applicationContext, "
     fun upsertFromIndex(note: Note) {
         val local = get(note.id)
         if (local != null && (local.updatedAt >= note.updatedAt || !local.synced)) return
-        writableDatabase.insertWithOnConflict("note", null, values(note.copy(synced = true, deleted = false, pinned = local?.pinned ?: false, position = local?.position ?: 0)), SQLiteDatabase.CONFLICT_REPLACE)
+        writableDatabase.insertWithOnConflict("note", null, values(note.copy(synced = true, deleted = false, position = local?.position ?: 0)), SQLiteDatabase.CONFLICT_REPLACE)
     }
 
     fun clearAll() {
@@ -156,7 +149,7 @@ class NotesDb(context: Context) : SQLiteOpenHelper(context.applicationContext, "
     private fun values(n: Note) = ContentValues().apply {
         put("id", n.id); put("title", n.title); put("text", n.text); put("category", n.category)
         put("created_at", n.createdAt); put("updated_at", n.updatedAt); put("synced", if (n.synced) 1 else 0); put("deleted", if (n.deleted) 1 else 0)
-        put("pinned", if (n.pinned) 1 else 0); put("position", n.position)
+        put("position", n.position)
     }
 
     private fun read(c: android.database.Cursor) = Note(
@@ -168,7 +161,6 @@ class NotesDb(context: Context) : SQLiteOpenHelper(context.applicationContext, "
         updatedAt = c.getLong(c.getColumnIndexOrThrow("updated_at")),
         synced = c.getInt(c.getColumnIndexOrThrow("synced")) == 1,
         deleted = c.getInt(c.getColumnIndexOrThrow("deleted")) == 1,
-        pinned = c.getInt(c.getColumnIndexOrThrow("pinned")) == 1,
         position = c.getInt(c.getColumnIndexOrThrow("position")),
     )
 }
