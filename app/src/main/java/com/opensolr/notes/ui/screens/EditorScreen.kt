@@ -194,7 +194,7 @@ private class MultiTap {
 
 /** The category: a field with a dropdown of the categories in use (all of them on a tap, narrowed as you type); a tap on one fills it in. */
 @Composable
-fun CategoryField(value: String, categories: List<String>, onChange: (String) -> Unit, hint: String = stringResource(R.string.category_hint)) {
+fun CategoryField(value: String, categories: List<String>, onChange: (String) -> Unit, hint: String = stringResource(R.string.category_hint), label: Boolean = true) {
     val p = LocalPalette.current
     var focused by remember { mutableStateOf(false) }
     var dismissed by remember { mutableStateOf(false) }
@@ -205,8 +205,8 @@ fun CategoryField(value: String, categories: List<String>, onChange: (String) ->
         val all = categories.filter { it != q }
         if (!typed || q.isEmpty()) all.take(20) else all.filter { it.contains(q, ignoreCase = true) }.take(20)
     }
-    Column(Modifier.fillMaxWidth().background(p.band).padding(top = 8.dp)) {
-        Text(stringResource(R.string.category), style = MaterialTheme.typography.labelMedium, color = p.muted, modifier = Modifier.padding(start = 12.dp))
+    Column(Modifier.fillMaxWidth().background(p.band).padding(top = if (label) 8.dp else 0.dp)) {
+        if (label) Text(stringResource(R.string.category), style = MaterialTheme.typography.labelMedium, color = p.muted, modifier = Modifier.padding(start = 12.dp))
         Box(
             Modifier.fillMaxWidth()
                 .onFocusChanged { focused = it.hasFocus; if (it.hasFocus) { dismissed = false; typed = false } }

@@ -118,7 +118,7 @@ private fun FilterRow(vm: AppViewModel) {
             }
         }
         // The category to show: typed or picked from the dropdown of the categories in use; emptied = all.
-        CategoryField(f.category.orEmpty(), vm.categories, onChange = { vm.applyFilters(f.copy(category = it.trim().ifBlank { null })) }, hint = stringResource(R.string.all_categories))
+        CategoryField(f.category.orEmpty(), vm.categories, onChange = { vm.applyFilters(f.copy(category = it.trim().ifBlank { null })) }, hint = stringResource(R.string.all_categories), label = false)
         Hairline()
     }
 }
