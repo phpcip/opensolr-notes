@@ -124,7 +124,7 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
             CategoryField(category, vm.categories, onChange = { category = it })
             Hairline()
             // the app's own face at normal weight, so B stands out from it
-            val mono = MaterialTheme.typography.bodyMedium.copy(color = p.ink, fontWeight = FontWeight.Normal, lineHeight = MaterialTheme.typography.bodyMedium.fontSize * 1.6f)
+            val mono = MaterialTheme.typography.bodyMedium.copy(color = p.ink, fontWeight = FontWeight.Thin, lineHeight = MaterialTheme.typography.bodyMedium.fontSize * 1.6f)
             var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
             val multiTap = remember { MultiTap() }
             Box(Modifier.fillMaxWidth().heightIn(min = 260.dp).padding(horizontal = 12.dp, vertical = 11.dp)) {
