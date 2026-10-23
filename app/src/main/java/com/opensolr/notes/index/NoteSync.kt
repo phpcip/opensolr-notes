@@ -91,7 +91,8 @@ class NoteSync(private val context: Context) {
             .put("uri", "opensolr-notes://note/" + n.id)
             .put("title", title)
             .put("description", description)
-            .put("text", n.text)
+            .put("text", NoteText.plain(n.text))
+            .put("textraw_t", n.text)
             .put("category", n.category)
             .put("creation_date", iso(n.createdAt))
             .put("note_title_s", n.title)
@@ -117,7 +118,7 @@ class NoteSync(private val context: Context) {
         while (pages++ < 200) {
             val r = solr.select(listOf(
                 "q" to "source_s:opensolr-notes",
-                "fl" to "id,note_title_s,title,text,category,creation_date,updated_l",
+                "fl" to "id,note_title_s,title,text,textraw_t,category,creation_date,updated_l",
                 "sort" to "updated_l desc, id asc",
                 "rows" to "200",
                 "cursorMark" to cursor,
@@ -131,7 +132,7 @@ class NoteSync(private val context: Context) {
                 db.upsertFromIndex(Note(
                     id = id,
                     title = first(d, "note_title_s"),
-                    text = first(d, "text"),
+                    text = first(d, "textraw_t").ifEmpty { first(d, "text") },
                     category = first(d, "category"),
                     createdAt = createdAt,
                     updatedAt = updatedAt,

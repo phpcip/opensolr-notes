@@ -84,6 +84,11 @@ class AppPrefs(context: Context) {
         get() = sp.getLong("last_update_check", 0L)
         set(v) = sp.edit().putLong("last_update_check", v).apply()
 
+    /** The Settings sections left open; the rest are folded. */
+    var openSections: Set<String>
+        get() = sp.getStringSet("open_sections", null) ?: setOf("account")
+        set(v) = sp.edit().putStringSet("open_sections", v).apply()
+
     fun savePending(kind: String, verifier: String, state: String) {
         sp.edit().putString("pending_${kind}_verifier", verifier).putString("pending_${kind}_state", state)
             .putLong("pending_${kind}_at", System.currentTimeMillis()).apply()

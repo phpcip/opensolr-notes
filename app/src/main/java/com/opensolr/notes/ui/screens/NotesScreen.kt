@@ -114,15 +114,8 @@ private fun FilterRow(vm: AppViewModel) {
                 vm.applyFilters(f.copy(from = today.withDayOfYear(1).atStartOfDay(zone).toInstant().toEpochMilli(), to = null))
             }
         }
-        if (vm.categories.isNotEmpty()) {
-            Row(Modifier.horizontalScroll(rememberScrollState()).padding(start = 12.dp, end = 12.dp, bottom = 8.dp)) {
-                Chip(stringResource(R.string.all_categories), f.category == null) { vm.applyFilters(f.copy(category = null)) }
-                vm.categories.forEach { c ->
-                    Spacer(Modifier.width(6.dp))
-                    Chip(c, f.category == c) { vm.applyFilters(f.copy(category = if (f.category == c) null else c)) }
-                }
-            }
-        }
+        // The category to show: typed or picked from the dropdown of the categories in use; emptied = all.
+        CategoryField(f.category.orEmpty(), vm.categories, onChange = { vm.applyFilters(f.copy(category = it.trim().ifBlank { null })) })
         Hairline()
     }
 }

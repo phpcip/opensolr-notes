@@ -130,24 +130,25 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
     }
 }
 
-/** The category: a field with a dropdown of the categories in use, narrowed by what is typed; a tap fills it in. */
+/** The category: a field with a dropdown of the categories in use (all of them on a tap, narrowed as you type); a tap on one fills it in. */
 @Composable
-private fun CategoryField(value: String, categories: List<String>, onChange: (String) -> Unit) {
+fun CategoryField(value: String, categories: List<String>, onChange: (String) -> Unit) {
     val p = LocalPalette.current
     var focused by remember { mutableStateOf(false) }
     var dismissed by remember { mutableStateOf(false) }
+    var typed by remember { mutableStateOf(false) }
     val q = value.trim()
-    val options = remember(q, categories) { categories.filter { it != q && (q.isEmpty() || it.contains(q, ignoreCase = true)) }.take(12) }
-    Column(Modifier.fillMaxWidth().background(p.band)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.category), style = MaterialTheme.typography.labelMedium, color = p.muted, modifier = Modifier.padding(start = 12.dp))
-            Spacer(Modifier.width(4.dp))
-            Box(Modifier.weight(1f).onFocusChanged { focused = it.isFocused; if (it.isFocused) dismissed = false }) {
-                Field(value = value, onChange = { onChange(it); dismissed = false }, hint = stringResource(R.string.category_hint), modifier = Modifier.fillMaxWidth())
-                DropdownMenu(expanded = focused && !dismissed && options.isNotEmpty(), onDismissRequest = { dismissed = true }, properties = androidx.compose.ui.window.PopupProperties(focusable = false)) {
-                    options.forEach { c ->
-                        DropdownMenuItem(text = { Text(c, color = p.ink) }, onClick = { onChange(c); dismissed = true })
-                    }
+    val options = remember(q, categories, typed) {
+        val all = categories.filter { it != q }
+        if (!typed || q.isEmpty()) all.take(20) else all.filter { it.contains(q, ignoreCase = true) }.take(20)
+    }
+    Column(Modifier.fillMaxWidth().background(p.band).padding(top = 8.dp)) {
+        Text(stringResource(R.string.category), style = MaterialTheme.typography.labelMedium, color = p.muted, modifier = Modifier.padding(start = 12.dp))
+        Box(Modifier.fillMaxWidth().onFocusChanged { focused = it.hasFocus; if (it.hasFocus) { dismissed = false; typed = false } }) {
+            Field(value = value, onChange = { onChange(it); dismissed = false; typed = true }, hint = stringResource(R.string.category_hint), modifier = Modifier.fillMaxWidth())
+            DropdownMenu(expanded = focused && !dismissed && options.isNotEmpty(), onDismissRequest = { dismissed = true }, properties = androidx.compose.ui.window.PopupProperties(focusable = false)) {
+                options.forEach { c ->
+                    DropdownMenuItem(text = { Text(c, color = p.ink) }, onClick = { onChange(c); dismissed = true })
                 }
             }
         }

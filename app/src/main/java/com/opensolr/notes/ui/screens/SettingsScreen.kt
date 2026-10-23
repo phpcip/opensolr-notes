@@ -34,10 +34,11 @@ import com.opensolr.notes.ui.ConfirmDialog
 import com.opensolr.notes.ui.GhostButton
 import com.opensolr.notes.ui.Haptics
 import com.opensolr.notes.ui.InfoRow
-import com.opensolr.notes.ui.SectionLabel
 import com.opensolr.notes.ui.TopBar
+import com.opensolr.notes.ui.Zone
 import com.opensolr.notes.ui.theme.LocalPalette
 
+/** Settings in folding sections; which ones are open is remembered. */
 @Composable
 fun SettingsScreen(vm: AppViewModel) {
     val p = LocalPalette.current
@@ -47,60 +48,65 @@ fun SettingsScreen(vm: AppViewModel) {
     var aiSearch by remember { mutableStateOf(vm.prefs.aiSearch) }
     var aiCategory by remember { mutableStateOf(vm.prefs.aiCategory) }
     var haptics by remember { mutableStateOf(vm.prefs.haptics) }
+    var open by remember { mutableStateOf(vm.prefs.openSections) }
+    fun toggle(key: String) {
+        open = if (key in open) open - key else open + key
+        vm.prefs.openSections = open
+    }
     Column(Modifier.fillMaxSize()) {
         TopBar(stringResource(R.string.settings), onBack = { vm.back() })
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
-            SectionLabel(stringResource(R.string.account))
-            InfoRow(stringResource(R.string.signed_in_as), vm.prefs.email)
-            InfoRow(stringResource(R.string.index), vm.prefs.indexName.ifBlank { "…" })
-            InfoRow(stringResource(R.string.notes_count), vm.db.count().toString())
-            Spacer(Modifier.height(12.dp))
-            vm.searchPageUrl()?.let { url ->
-                GhostButton(stringResource(R.string.open_search_page), onClick = {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                }, modifier = Modifier.fillMaxWidth())
-                Text(stringResource(R.string.search_page_hint), style = MaterialTheme.typography.bodySmall, color = p.muted, modifier = Modifier.padding(top = 6.dp))
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
+            Zone(stringResource(R.string.account), 0, "account" in open, { toggle("account") }) {
+                InfoRow(stringResource(R.string.signed_in_as), vm.prefs.email)
+                InfoRow(stringResource(R.string.index), vm.prefs.indexName.ifBlank { "…" })
+                InfoRow(stringResource(R.string.notes_count), vm.db.count().toString())
                 Spacer(Modifier.height(12.dp))
-            }
-            if (vm.prefs.indexName.isNotBlank()) {
-                // The index's Security section on opensolr.com: the HTTP user and password the search page asks for.
-                GhostButton(stringResource(R.string.index_security), onClick = {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://opensolr.com/admin/solr_manager/tools/" + vm.prefs.indexName + "#security")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                }, modifier = Modifier.fillMaxWidth())
+                vm.searchPageUrl()?.let { url ->
+                    GhostButton(stringResource(R.string.open_search_page), onClick = {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }, modifier = Modifier.fillMaxWidth())
+                    Text(stringResource(R.string.search_page_hint), style = MaterialTheme.typography.bodySmall, color = p.muted, modifier = Modifier.padding(top = 6.dp))
+                    Spacer(Modifier.height(12.dp))
+                }
+                if (vm.prefs.indexName.isNotBlank()) {
+                    GhostButton(stringResource(R.string.index_security), onClick = {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://opensolr.com/admin/solr_manager/tools/" + vm.prefs.indexName + "#security")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }, modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(12.dp))
+                }
+                GhostButton(stringResource(R.string.sync_now), onClick = { vm.syncNow() }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(12.dp))
+                GhostButton(stringResource(R.string.sign_out), onClick = { confirmSignOut = true }, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
             }
-            GhostButton(stringResource(R.string.sync_now), onClick = { vm.syncNow() }, modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(12.dp))
-            GhostButton(stringResource(R.string.sign_out), onClick = { confirmSignOut = true }, modifier = Modifier.fillMaxWidth())
-
-            Spacer(Modifier.height(28.dp))
-            SectionLabel(stringResource(R.string.ai))
-            ToggleRow(stringResource(R.string.ai_search), stringResource(R.string.ai_search_hint), aiSearch) { aiSearch = it; vm.prefs.aiSearch = it; Haptics.toggle(view, it) }
-            ToggleRow(stringResource(R.string.ai_category), stringResource(R.string.ai_category_hint), aiCategory) { aiCategory = it; vm.prefs.aiCategory = it; Haptics.toggle(view, it) }
-
-            Spacer(Modifier.height(28.dp))
-            SectionLabel(stringResource(R.string.app))
-            ToggleRow(stringResource(R.string.haptics), stringResource(R.string.haptics_hint), haptics) { haptics = it; vm.prefs.haptics = it; Haptics.enabled = it; Haptics.toggle(view, it) }
-            Spacer(Modifier.height(12.dp))
-            InfoRow(stringResource(R.string.version), BuildConfig.VERSION_NAME)
-            val newer = vm.update
-            if (newer != null) {
-                Spacer(Modifier.height(8.dp))
-                Text(stringResource(R.string.update_available, newer.version), style = MaterialTheme.typography.bodyMedium, color = p.ink)
-                if (newer.notes.isNotBlank()) Text(newer.notes, style = MaterialTheme.typography.bodySmall, color = p.muted, modifier = Modifier.padding(top = 4.dp))
-                Spacer(Modifier.height(8.dp))
-                when {
-                    SelfUpdate.fromStore(context) -> AccentButton(stringResource(R.string.update_now, newer.version), onClick = { SelfUpdate.openStore(context) }, modifier = Modifier.fillMaxWidth())
-                    BuildConfig.PLAY_BUILD -> AccentButton(stringResource(R.string.update_now, newer.version), onClick = { SelfUpdate.openRelease(context, newer.pageUrl) }, modifier = Modifier.fillMaxWidth())
-                    else -> {
-                        val progress = vm.updateProgress
-                        AccentButton(
-                            if (progress != null) stringResource(R.string.downloading, progress) else stringResource(R.string.update_now, newer.version),
-                            onClick = { vm.installUpdate(context) }, enabled = progress == null, modifier = Modifier.fillMaxWidth(),
-                        )
-                        vm.updateError?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = p.muted, modifier = Modifier.padding(top = 6.dp)) }
+            Zone(stringResource(R.string.ai), 0, "ai" in open, { toggle("ai") }) {
+                ToggleRow(stringResource(R.string.ai_search), stringResource(R.string.ai_search_hint), aiSearch) { aiSearch = it; vm.prefs.aiSearch = it; Haptics.toggle(view, it) }
+                ToggleRow(stringResource(R.string.ai_category), stringResource(R.string.ai_category_hint), aiCategory) { aiCategory = it; vm.prefs.aiCategory = it; Haptics.toggle(view, it) }
+            }
+            Zone(stringResource(R.string.app), 0, "app" in open, { toggle("app") }) {
+                ToggleRow(stringResource(R.string.haptics), stringResource(R.string.haptics_hint), haptics) { haptics = it; vm.prefs.haptics = it; Haptics.enabled = it; Haptics.toggle(view, it) }
+                Spacer(Modifier.height(12.dp))
+                InfoRow(stringResource(R.string.version), BuildConfig.VERSION_NAME)
+                val newer = vm.update
+                if (newer != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(stringResource(R.string.update_available, newer.version), style = MaterialTheme.typography.bodyMedium, color = p.ink)
+                    if (newer.notes.isNotBlank()) Text(newer.notes, style = MaterialTheme.typography.bodySmall, color = p.muted, modifier = Modifier.padding(top = 4.dp))
+                    Spacer(Modifier.height(8.dp))
+                    when {
+                        SelfUpdate.fromStore(context) -> AccentButton(stringResource(R.string.update_now, newer.version), onClick = { SelfUpdate.openStore(context) }, modifier = Modifier.fillMaxWidth())
+                        BuildConfig.PLAY_BUILD -> AccentButton(stringResource(R.string.update_now, newer.version), onClick = { SelfUpdate.openRelease(context, newer.pageUrl) }, modifier = Modifier.fillMaxWidth())
+                        else -> {
+                            val progress = vm.updateProgress
+                            AccentButton(
+                                if (progress != null) stringResource(R.string.downloading, progress) else stringResource(R.string.update_now, newer.version),
+                                onClick = { vm.installUpdate(context) }, enabled = progress == null, modifier = Modifier.fillMaxWidth(),
+                            )
+                            vm.updateError?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = p.muted, modifier = Modifier.padding(top = 6.dp)) }
+                        }
                     }
                 }
+                Spacer(Modifier.height(8.dp))
             }
             Spacer(Modifier.height(40.dp))
         }
