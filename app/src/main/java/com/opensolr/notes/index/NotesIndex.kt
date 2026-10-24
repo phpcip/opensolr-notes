@@ -2,6 +2,7 @@ package com.opensolr.notes.index
 
 import android.content.Context
 import com.opensolr.notes.data.AppPrefs
+import com.opensolr.notes.data.NotesDb
 import com.opensolr.notes.net.IndexConnection
 import com.opensolr.notes.net.IndexChoiceException
 import com.opensolr.notes.net.IndexMissingException
@@ -21,6 +22,7 @@ class NotesIndex(context: Context) {
 
     private val prefs = AppPrefs(context)
     private val api = OpensolrApi(prefs)
+    private val db = NotesDb(context)
 
     /** notes_<device id>__dense: the index this phone makes for itself. */
     val ownName: String get() = "notes_" + prefs.installId + "__dense"
@@ -51,6 +53,8 @@ class NotesIndex(context: Context) {
             api.enableElevation(name)
             prefs.elevatedIndex = name
         }
+        // A new or different index holds none of the notes synced before: they go up again instead of being dropped as gone
+        if (!exists || prefs.indexName != name) db.markAllUnsynced()
         prefs.indexName = name
         prefs.chosenIndex = name
         prefs.connectionJson = connection.toJson()

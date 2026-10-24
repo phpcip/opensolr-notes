@@ -22,8 +22,8 @@ android {
         applicationId = "com.opensolr.notes"
         minSdk = 26
         targetSdk = 36
-        versionCode = 8
-        versionName = "1.0.7"
+        versionCode = 9
+        versionName = "1.0.8"
     }
 
     flavorDimensions += "store"
@@ -59,6 +59,12 @@ android {
     }
 
     buildTypes {
+        // test builds: no minification, signed with the same key so they install over the app without losing its data
+        debug {
+            if (!signingProperties.isEmpty) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
         release {
             if (!signingProperties.isEmpty) {
                 signingConfig = signingConfigs.getByName("release")

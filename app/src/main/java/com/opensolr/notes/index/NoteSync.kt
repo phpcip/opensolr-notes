@@ -113,10 +113,12 @@ class NoteSync(private val context: Context) {
         return doc
     }
 
-    /** Every note in the index, newest first, read in pages; notes this phone lacks or has older come in. */
+    /** Every note in the index, newest first, read in pages; notes this phone lacks or has older come in, notes deleted elsewhere go. */
     private suspend fun pull(solr: SolrClient) {
         var cursor = "*"
         var pages = 0
+        val present = HashSet<String>()
+        var complete = false
         while (pages++ < 200) {
             val r = solr.select(listOf(
                 "q" to "source_s:opensolr-notes",
@@ -125,10 +127,11 @@ class NoteSync(private val context: Context) {
                 "rows" to "200",
                 "cursorMark" to cursor,
             ))
-            val docs = r.optJSONObject("response")?.optJSONArray("docs") ?: break
+            val docs = r.optJSONObject("response")?.optJSONArray("docs") ?: return
             for (i in 0 until docs.length()) {
                 val d = docs.getJSONObject(i)
                 val id = d.optString("id").takeIf { it.isNotBlank() } ?: continue
+                present.add(id)
                 val createdAt = parseIso(d.optString("creation_date")) ?: System.currentTimeMillis()
                 val updatedAt = d.optLong("updated_l", createdAt)
                 db.upsertFromIndex(Note(
@@ -143,9 +146,12 @@ class NoteSync(private val context: Context) {
                 ))
             }
             val next = r.optString("nextCursorMark")
-            if (next.isBlank() || next == cursor || docs.length() == 0) break
+            if (next.isBlank()) return
+            if (next == cursor || docs.length() == 0) { complete = true; break }
             cursor = next
         }
+        // Only a pull that read the whole index may conclude a note is gone from it
+        if (complete) db.dropMissing(present)
         prefs.lastPull = System.currentTimeMillis()
     }
 

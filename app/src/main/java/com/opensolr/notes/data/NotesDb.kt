@@ -147,6 +147,28 @@ class NotesDb(context: Context) : SQLiteOpenHelper(context.applicationContext, "
         writableDatabase.insertWithOnConflict("note", null, values(note.copy(synced = true, deleted = false, position = local?.position ?: 0)), SQLiteDatabase.CONFLICT_REPLACE)
     }
 
+    fun markAllUnsynced() {
+        writableDatabase.execSQL("UPDATE note SET synced = 0 WHERE deleted = 0")
+    }
+
+    /** Synced notes the index no longer has (deleted on another phone) leave this phone too; unsent edits stay. */
+    fun dropMissing(present: Set<String>) {
+        val gone = readableDatabase.rawQuery("SELECT id FROM note WHERE synced = 1 AND deleted = 0", null).use { c ->
+            buildList { while (c.moveToNext()) c.getString(0).takeIf { it !in present }?.let { add(it) } }
+        }
+        if (gone.isEmpty()) return
+        val w = writableDatabase
+        w.beginTransaction()
+        try {
+            gone.chunked(500).forEach { ids ->
+                w.delete("note", "synced = 1 AND deleted = 0 AND id IN (" + ids.joinToString(",") { "?" } + ")", ids.toTypedArray())
+            }
+            w.setTransactionSuccessful()
+        } finally {
+            w.endTransaction()
+        }
+    }
+
     fun clearAll() {
         writableDatabase.delete("note", null, null)
     }

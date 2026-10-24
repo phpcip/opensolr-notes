@@ -32,8 +32,8 @@ class SolrClient(connection: IndexConnection) {
         })
     }
 
-    /** [commitWithinMs] is how long the index may wait before the write becomes searchable. */
-    suspend fun add(docs: JSONArray, commitWithinMs: Int = DEFAULT_COMMIT_MS) = update(docs.toString(), commitWithinMs)
+    /** Searchable at once (soft commit), so the pull that follows finds the note and does not take it for deleted. */
+    suspend fun add(docs: JSONArray, commitWithinMs: Int = DEFAULT_COMMIT_MS) = update(docs.toString(), commitWithinMs, "&softCommit=true")
 
     /**
      * Atomic updates that touch only documents already in the index: one for a message that has no
