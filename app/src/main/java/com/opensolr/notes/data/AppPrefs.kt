@@ -74,6 +74,11 @@ class AppPrefs(context: Context) {
         get() = sp.getString("elevated_index", "") ?: ""
         set(v) = sp.edit().putString("elevated_index", v).apply()
 
+    /** Where the last finished sync left off, as "<index>|<server ms>": a different index starts from the beginning. */
+    var syncCursor: String
+        get() = sp.getString("sync_cursor", "") ?: ""
+        set(v) = sp.edit().putString("sync_cursor", v).apply()
+
     var lastPull: Long
         get() = sp.getLong(K_PULL, 0L)
         set(v) = sp.edit().putLong(K_PULL, v).apply()

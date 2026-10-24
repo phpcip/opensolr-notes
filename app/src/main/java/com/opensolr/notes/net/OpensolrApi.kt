@@ -140,6 +140,64 @@ class OpensolrApi(private val prefs: AppPrefs) {
         json.optLong("updated_l", note.updatedAt)
     }
 
+    /** One notes_sync answer: what the call wrote, what changed elsewhere, where to go on, the index's connection. */
+    class SyncAnswer(
+        val saved: List<Pair<String, Long>>,
+        val deleted: List<String>,
+        val notes: List<com.opensolr.notes.data.Note>,
+        val more: Boolean,
+        val mark: String,
+        val nextSince: Long,
+        /** Every note id in the index, sent only when its count differs from the phone's; null otherwise. */
+        val ids: Set<String>?,
+        val connection: IndexConnection?,
+    )
+
+    /**
+     * The whole sync in one call: [changes] (at most 500) go up, the notes written since [since] come down a page at a
+     * time from [mark]; [have] = the notes this phone keeps, so the server sends every id only when something was deleted elsewhere.
+     */
+    suspend fun notesSync(name: String, changes: List<com.opensolr.notes.data.Note>, since: Long, mark: String, have: Int): SyncAnswer = withContext(Dispatchers.IO) {
+        val up = JSONArray()
+        for (n in changes) {
+            up.put(if (n.deleted) JSONObject().put("id", n.id).put("deleted", true)
+            else JSONObject().put("id", n.id).put("title", n.title).put("text", n.text).put("category", n.category).put("created", n.createdAt).put("updated", n.updatedAt))
+        }
+        val body = JSONObject().put("email", email).put("api_key", key).put("index_name", name)
+            .put("changes", up).put("since", since).put("mark", mark).put("have", have)
+        val request = Request.Builder().url(AI + "notes_sync").post(body.toString().toRequestBody(JSON)).build()
+        val (code, text) = Http.client.newCall(request).execute().use { r -> r.code to r.body?.string().orEmpty() }
+        if (text.contains("ERROR_AUTHENTICATION_FAILED")) signedOut(key)
+        classify(code, text, null)
+        val json = obj(text)
+        if (code == 404 || json.optString("msg") == "NOT_OWNER_ERROR") throw IndexMissingException()
+        if (!json.optBoolean("status")) throw ServiceException(message(text).ifBlank { "Opensolr answered HTTP $code" })
+        val saved = json.optJSONArray("saved") ?: JSONArray()
+        val deleted = json.optJSONArray("deleted") ?: JSONArray()
+        val notes = json.optJSONArray("notes") ?: JSONArray()
+        val now = System.currentTimeMillis()
+        SyncAnswer(
+            saved = List(saved.length()) { saved.getJSONObject(it).let { o -> o.optString("id") to o.optLong("updated_l") } },
+            deleted = List(deleted.length()) { deleted.optString(it) },
+            notes = List(notes.length()) {
+                val o = notes.getJSONObject(it)
+                val created = o.optLong("created").takeIf { c -> c > 0 } ?: now
+                com.opensolr.notes.data.Note(
+                    id = o.optString("id"), title = o.optString("title"), text = o.optString("text"), category = o.optString("category"),
+                    createdAt = created, updatedAt = o.optLong("updated").takeIf { u -> u > 0 } ?: created, synced = true, deleted = false,
+                )
+            },
+            more = json.optBoolean("more"),
+            mark = json.optString("mark", mark),
+            nextSince = json.optLong("next_since"),
+            ids = json.optJSONArray("ids")?.let { a -> HashSet<String>(a.length()).apply { for (i in 0 until a.length()) add(a.optString(i)) } },
+            connection = json.optJSONObject("connection")?.let { c ->
+                IndexConnection(name, c.optString("connection_url"), c.optString("auth_username"), c.optString("auth_password"), c.optJSONObject("search_tuning") ?: JSONObject())
+                    .takeIf { it.baseUrl.startsWith("https://") }
+            },
+        )
+    }
+
     suspend fun embedQuery(name: String, query: String): FloatArray = withContext(Dispatchers.IO) {
         val body = JSONObject().put("email", email).put("api_key", key).put("index_name", name).put("is_query", "1").put("payload", query)
         val text = execute(Request.Builder().url(AI + "embed").post(body.toString().toRequestBody(JSON)).build()).trim()

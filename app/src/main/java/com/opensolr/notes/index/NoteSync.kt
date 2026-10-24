@@ -2,24 +2,22 @@ package com.opensolr.notes.index
 
 import android.content.Context
 import com.opensolr.notes.data.AppPrefs
-import com.opensolr.notes.data.Note
 import com.opensolr.notes.data.NotesDb
 import com.opensolr.notes.net.IndexConnection
+import com.opensolr.notes.net.IndexMissingException
 import com.opensolr.notes.net.OpensolrApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import org.json.JSONArray
-import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
 /**
- * Keeps the index in step with the notes on this phone. A saved or deleted note goes up at once, in one call,
- * with the account read from this phone's copy; the account itself and the notes other phones wrote are read
- * again only on a full sync (the app opened, pull to refresh, Sync now).
+ * Keeps the index in step with the notes on this phone, through ONE call to notes_sync on Opensolr: the unsent notes go
+ * up, the notes other phones wrote since the last sync come down, and the ids of the index only when a note was deleted
+ * elsewhere. A save or delete runs the same call; the app opened, pull to refresh and Sync now run it too.
  */
 class NoteSync(private val context: Context) {
 
@@ -28,104 +26,92 @@ class NoteSync(private val context: Context) {
     private val db = NotesDb(context)
     private val index = NotesIndex(context)
 
-    /** The full sync: the account read again, every unsynced note sent, then what other phones wrote pulled. */
+    /** The full sync: the index made or checked once, then one notes_sync call (more only for a first sync of a big index). */
     suspend fun run(): String? = lock.withLock {
         if (!prefs.signedIn) return@withLock null
-        // Read again here only, so a Search Tuning changed in the Control Panel reaches the app at the next open or refresh
-        NotesIndex.refresh()
-        val connection = index.ensure()
-        val solr = SolrClient(connection)
-        var problem = sendPending(connection.indexName, solr)
+        val known = IndexConnection.fromJson(prefs.connectionJson)?.takeIf { it.indexName == index.name && it.indexName == prefs.indexName }
+        val connection = known ?: index.ensure()
         try {
-            pull(solr)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            problem = problem ?: (e.message ?: e.javaClass.simpleName)
+            sync(connection.indexName)
+        } catch (e: IndexMissingException) {
+            // the index went away or changed owner: made or chosen again, then synced once more
+            NotesIndex.refresh()
+            prefs.connectionJson = ""
+            sync(index.ensure().indexName)
         }
-        problem
     }
 
-    /**
-     * After a save or a delete: only the unsynced notes go up, with the index this phone already knows. With no
-     * index known yet (first start), nothing is sent here; the full sync that the app runs on opening does it.
-     */
+    /** After a save or a delete: the same call, with the index this phone already knows; nothing before the first full sync. */
     suspend fun push(): String? = lock.withLock {
         if (!prefs.signedIn) return@withLock null
         val connection = IndexConnection.fromJson(prefs.connectionJson)?.takeIf { it.indexName == prefs.indexName } ?: return@withLock null
-        sendPending(connection.indexName, SolrClient(connection))
+        try {
+            sync(connection.indexName)
+        } catch (e: IndexMissingException) {
+            e.message
+        }
     }
 
-    /** Every unsynced note: a deleted one leaves the index, any other is written by Opensolr in one call. */
-    private suspend fun sendPending(indexName: String, solr: SolrClient): String? {
-        var problem: String? = null
-        for (note in db.unsynced()) {
-            try {
-                if (note.deleted) {
-                    solr.deleteIds(listOf(note.id))
-                    db.purge(note.id)
-                } else {
-                    api.notesSave(indexName, note)
-                    db.markSynced(note.id, note.updatedAt)
+    /** notes_sync until nothing is left to send and the last page is read; null when all went through, else what failed. */
+    private suspend fun sync(name: String): String? {
+        val cursor = prefs.syncCursor.split('|').takeIf { it.size == 2 && it[0] == name }
+        var since = cursor?.get(1)?.toLongOrNull() ?: 0L
+        var rounds = 0
+        while (rounds++ < 400) {
+            val changes = db.unsynced().take(BATCH)
+            var mark = "*"
+            var nextSince = 0L
+            var page = 0
+            var sent = 0
+            while (true) {
+                val have = db.count()
+                val a = try {
+                    api.notesSync(name, if (page == 0) changes else emptyList(), since, mark, have)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: IndexMissingException) {
+                    throw e
+                } catch (e: Exception) {
+                    return e.message ?: e.javaClass.simpleName
                 }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                problem = e.message ?: e.javaClass.simpleName
+                if (page == 0) { nextSince = a.nextSince; sent = a.saved.size + a.deleted.size }
+                apply(a)
+                page++
+                if (!a.more) break
+                mark = a.mark
             }
+            // only a sync that read its last page moves the cursor
+            if (nextSince > 0) {
+                since = nextSince
+                prefs.syncCursor = "$name|$nextSince"
+            }
+            prefs.lastPull = System.currentTimeMillis()
+            if (changes.size < BATCH) return null
+            // a full batch that Opensolr took none of would come back the same forever
+            if (sent == 0) return "Notes not accepted by the index"
         }
-        return problem
+        return null
     }
 
-    /** Every note in the index, newest first, read in pages; notes this phone lacks or has older come in, notes deleted elsewhere go. */
-    private suspend fun pull(solr: SolrClient) {
-        var cursor = "*"
-        var pages = 0
-        val present = HashSet<String>()
-        var complete = false
-        while (pages++ < 200) {
-            val r = solr.select(listOf(
-                "q" to "source_s:opensolr-notes",
-                "fl" to "id,note_title_s,title,text,textraw_t,category,creation_date,updated_l",
-                "sort" to "updated_l desc, id asc",
-                "rows" to "200",
-                "cursorMark" to cursor,
-            ))
-            val docs = r.optJSONObject("response")?.optJSONArray("docs") ?: return
-            for (i in 0 until docs.length()) {
-                val d = docs.getJSONObject(i)
-                val id = d.optString("id").takeIf { it.isNotBlank() } ?: continue
-                present.add(id)
-                val createdAt = parseIso(d.optString("creation_date")) ?: System.currentTimeMillis()
-                val updatedAt = d.optLong("updated_l", createdAt)
-                db.upsertFromIndex(Note(
-                    id = id,
-                    title = first(d, "note_title_s"),
-                    text = first(d, "textraw_t").ifEmpty { first(d, "text") },
-                    category = first(d, "category"),
-                    createdAt = createdAt,
-                    updatedAt = updatedAt,
-                    synced = true,
-                    deleted = false,
-                ))
-            }
-            val next = r.optString("nextCursorMark")
-            if (next.isBlank()) return
-            if (next == cursor || docs.length() == 0) { complete = true; break }
-            cursor = next
+    /** One answer written to this phone in one transaction. */
+    private fun apply(a: OpensolrApi.SyncAnswer) {
+        val w = db.writableDatabase
+        w.beginTransaction()
+        try {
+            for ((id, updated) in a.saved) db.markSynced(id, updated)
+            for (id in a.deleted) db.purge(id)
+            for (n in a.notes) if (n.id.isNotBlank()) db.upsertFromIndex(n)
+            w.setTransactionSuccessful()
+        } finally {
+            w.endTransaction()
         }
-        // Only a pull that read the whole index may conclude a note is gone from it
-        if (complete) db.dropMissing(present)
-        prefs.lastPull = System.currentTimeMillis()
-    }
-
-    private fun first(d: JSONObject, field: String): String {
-        val v = d.opt(field) ?: return ""
-        return if (v is JSONArray) v.optString(0) else v.toString()
+        a.ids?.let { db.dropMissing(it) }
+        a.connection?.let { prefs.connectionJson = it.toJson() }
     }
 
     companion object {
         private val lock = Mutex()
+        private const val BATCH = 500
 
         private val isoFormat get() = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
 
