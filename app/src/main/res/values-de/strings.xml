@@ -16,13 +16,10 @@
     <string name="last_7_days">Letzte 7 Tage</string>
     <string name="last_30_days">Letzte 30 Tage</string>
     <string name="this_year">Dieses Jahr</string>
-    <string name="all_categories">Alle Kategorien</string>
     <string name="new_note">Neue Notiz</string>
     <string name="edit_note">Notiz</string>
     <string name="title_hint">Titel (optional)</string>
     <string name="text_hint">Notiz schreiben</string>
-    <string name="category">Kategorie</string>
-    <string name="category_hint">Optional</string>
     <string name="created_on">Erstellt %1$s</string>
     <string name="delete">Löschen</string>
     <string name="delete_note_q">Notiz löschen?</string>
@@ -55,4 +52,16 @@
     <string name="check_for_updates">Nach Updates suchen</string>
     <string name="checking">Wird geprüft…</string>
     <string name="up_to_date">Du hast die neueste Version.</string>
+    <string name="link">Link</string>
+    <string name="link_hint">https://</string>
+    <string name="apply">Übernehmen</string>
+    <string name="remove_link">Link entfernen</string>
+    <string name="open_link">Link öffnen</string>
+    <string name="link_text">Text</string>
+    <string name="link_url">URL</string>
+    <string name="link_opens">Öffnet sich im Browser.</string>
+    <string name="selected_count">%1$d ausgewählt</string>
+    <string name="delete_selected">Ausgewählte löschen</string>
+    <plurals name="delete_notes_q"><item quantity="one">%1$d Notiz löschen?</item><item quantity="other">%1$d Notizen löschen?</item></plurals>
+    <string name="delete_notes_text">Sie werden von diesem Telefon, deinen anderen Geräten und deinem Index entfernt.</string>
 </resources>

@@ -12,7 +12,7 @@ import org.json.JSONObject
 
 data class Hit(val id: String, val snippet: String, val score: Float)
 
-data class Filters(val category: String? = null, val from: Long? = null, val to: Long? = null)
+data class Filters(val from: Long? = null, val to: Long? = null)
 
 /** Search in the notes index: words and meaning fused by {!hybrid}, as on search.opensolr.com. */
 class NotesSearch(private val prefs: AppPrefs, private val api: OpensolrApi) {
@@ -39,7 +39,6 @@ class NotesSearch(private val prefs: AppPrefs, private val api: OpensolrApi) {
         } else lexical
         p += "q" to matched
         p += "fq" to "source_s:opensolr-notes"
-        filters.category?.takeIf { it.isNotBlank() }?.let { p += "fq" to "{!term f=category v=\$fcat}"; p += "fcat" to it }
         if (filters.from != null || filters.to != null) {
             val from = filters.from?.let { NoteSync.iso(it) } ?: "*"
             val to = filters.to?.let { NoteSync.iso(it) } ?: "*"

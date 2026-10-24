@@ -32,12 +32,15 @@ class NoteSync(private val context: Context) {
         val known = IndexConnection.fromJson(prefs.connectionJson)?.takeIf { it.indexName == index.name && it.indexName == prefs.indexName }
         val connection = known ?: index.ensure()
         try {
+            index.ensureConfig(connection)
             sync(connection.indexName)
         } catch (e: IndexMissingException) {
             // the index went away or changed owner: made or chosen again, then synced once more
             NotesIndex.refresh()
             prefs.connectionJson = ""
-            sync(index.ensure().indexName)
+            val again = index.ensure()
+            index.ensureConfig(again)
+            sync(again.indexName)
         }
     }
 
@@ -56,17 +59,20 @@ class NoteSync(private val context: Context) {
     private suspend fun sync(name: String): String? {
         val cursor = prefs.syncCursor.split('|').takeIf { it.size == 2 && it[0] == name }
         var since = cursor?.get(1)?.toLongOrNull() ?: 0L
+        // the first sync with this index: this phone's order goes up with its notes (the last device to order wins)
+        if (cursor == null) db.markPlacedUnsynced()
         var rounds = 0
         while (rounds++ < 400) {
             val changes = db.unsynced().take(BATCH)
             var mark = "*"
             var nextSince = 0L
             var page = 0
-            var sent = 0
+            var took = 0
             while (true) {
                 val have = db.count()
+                val sent = if (page == 0) changes else emptyList()
                 val a = try {
-                    api.notesSync(name, if (page == 0) changes else emptyList(), since, mark, have)
+                    api.notesSync(name, sent, db.knownIds(sent.map { it.id }), since, mark, have)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: IndexMissingException) {
@@ -74,7 +80,7 @@ class NoteSync(private val context: Context) {
                 } catch (e: Exception) {
                     return e.message ?: e.javaClass.simpleName
                 }
-                if (page == 0) { nextSince = a.nextSince; sent = a.saved.size + a.deleted.size }
+                if (page == 0) { nextSince = a.nextSince; took = a.saved.size + a.deleted.size + a.removed.size }
                 apply(a)
                 page++
                 if (!a.more) break
@@ -88,7 +94,7 @@ class NoteSync(private val context: Context) {
             prefs.lastPull = System.currentTimeMillis()
             if (changes.size < BATCH) return null
             // a full batch that Opensolr took none of would come back the same forever
-            if (sent == 0) return "Notes not accepted by the index"
+            if (took == 0) return "Notes not accepted by the index"
         }
         return null
     }
@@ -99,13 +105,21 @@ class NoteSync(private val context: Context) {
         w.beginTransaction()
         try {
             for ((id, updated) in a.saved) db.markSynced(id, updated)
+            db.markKnown(a.saved.map { it.first })
             for (id in a.deleted) db.purge(id)
-            for (n in a.notes) if (n.id.isNotBlank()) db.upsertFromIndex(n)
+            for (id in a.removed) db.forget(id)
+            for (n in a.notes) if (n.id.isNotBlank()) {
+                db.upsertFromIndex(n)
+                // the order another device set reaches this phone even when the note's text did not change
+                db.setPlace(n.id, n.position)
+            }
+            db.markKnown(a.notes.map { it.id })
             w.setTransactionSuccessful()
         } finally {
             w.endTransaction()
         }
         a.ids?.let { db.dropMissing(it) }
+        db.dropStaleKnown()
         a.connection?.let { prefs.connectionJson = it.toJson() }
     }
 

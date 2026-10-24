@@ -16,13 +16,10 @@
     <string name="last_7_days">最近 7 天</string>
     <string name="last_30_days">最近 30 天</string>
     <string name="this_year">今年</string>
-    <string name="all_categories">所有分类</string>
     <string name="new_note">新笔记</string>
     <string name="edit_note">笔记</string>
     <string name="title_hint">标题（可选）</string>
     <string name="text_hint">写下你的笔记</string>
-    <string name="category">分类</string>
-    <string name="category_hint">可选</string>
     <string name="created_on">创建于 %1$s</string>
     <string name="delete">删除</string>
     <string name="delete_note_q">删除这条笔记？</string>
@@ -55,4 +52,16 @@
     <string name="check_for_updates">检查更新</string>
     <string name="checking">正在检查…</string>
     <string name="up_to_date">已是最新版本。</string>
+    <string name="link">链接</string>
+    <string name="link_hint">https://</string>
+    <string name="apply">应用</string>
+    <string name="remove_link">移除链接</string>
+    <string name="open_link">打开链接</string>
+    <string name="link_text">文本</string>
+    <string name="link_url">URL</string>
+    <string name="link_opens">在浏览器中打开。</string>
+    <string name="selected_count">已选 %1$d 条</string>
+    <string name="delete_selected">删除所选</string>
+    <plurals name="delete_notes_q"><item quantity="one">删除 %1$d 条笔记？</item><item quantity="other">删除 %1$d 条笔记？</item></plurals>
+    <string name="delete_notes_text">它们将从此手机、你的其他设备和索引中删除。</string>
 </resources>

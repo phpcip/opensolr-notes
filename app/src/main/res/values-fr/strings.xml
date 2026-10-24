@@ -16,13 +16,10 @@
     <string name="last_7_days">7 derniers jours</string>
     <string name="last_30_days">30 derniers jours</string>
     <string name="this_year">Cette année</string>
-    <string name="all_categories">Toutes les catégories</string>
     <string name="new_note">Nouvelle note</string>
     <string name="edit_note">Note</string>
     <string name="title_hint">Titre (facultatif)</string>
     <string name="text_hint">Écris ta note</string>
-    <string name="category">Catégorie</string>
-    <string name="category_hint">Facultative</string>
     <string name="created_on">Créée le %1$s</string>
     <string name="delete">Supprimer</string>
     <string name="delete_note_q">Supprimer cette note ?</string>
@@ -55,4 +52,16 @@
     <string name="check_for_updates">Rechercher des mises à jour</string>
     <string name="checking">Vérification…</string>
     <string name="up_to_date">Tu as la dernière version.</string>
+    <string name="link">Lien</string>
+    <string name="link_hint">https://</string>
+    <string name="apply">Appliquer</string>
+    <string name="remove_link">Retirer le lien</string>
+    <string name="open_link">Ouvrir le lien</string>
+    <string name="link_text">Texte</string>
+    <string name="link_url">URL</string>
+    <string name="link_opens">S’ouvre dans le navigateur.</string>
+    <string name="selected_count">%1$d sélectionnées</string>
+    <string name="delete_selected">Supprimer la sélection</string>
+    <plurals name="delete_notes_q"><item quantity="one">Supprimer %1$d note ?</item><item quantity="other">Supprimer %1$d notes ?</item></plurals>
+    <string name="delete_notes_text">Elles sont supprimées de ce téléphone, de vos autres appareils et de votre index.</string>
 </resources>

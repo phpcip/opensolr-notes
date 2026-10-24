@@ -144,6 +144,8 @@ class OpensolrApi(private val prefs: AppPrefs) {
     class SyncAnswer(
         val saved: List<Pair<String, Long>>,
         val deleted: List<String>,
+        /** Edited here, deleted on another device: the deletion won, the note goes from this phone too. */
+        val removed: List<String>,
         val notes: List<com.opensolr.notes.data.Note>,
         val more: Boolean,
         val mark: String,
@@ -157,11 +159,12 @@ class OpensolrApi(private val prefs: AppPrefs) {
      * The whole sync in one call: [changes] (at most 500) go up, the notes written since [since] come down a page at a
      * time from [mark]; [have] = the notes this phone keeps, so the server sends every id only when something was deleted elsewhere.
      */
-    suspend fun notesSync(name: String, changes: List<com.opensolr.notes.data.Note>, since: Long, mark: String, have: Int): SyncAnswer = withContext(Dispatchers.IO) {
+    suspend fun notesSync(name: String, changes: List<com.opensolr.notes.data.Note>, known: Set<String>, since: Long, mark: String, have: Int): SyncAnswer = withContext(Dispatchers.IO) {
         val up = JSONArray()
         for (n in changes) {
             up.put(if (n.deleted) JSONObject().put("id", n.id).put("deleted", true)
-            else JSONObject().put("id", n.id).put("title", n.title).put("text", n.text).put("category", n.category).put("created", n.createdAt).put("updated", n.updatedAt))
+            else JSONObject().put("id", n.id).put("title", n.title).put("text", n.text).put("category", n.category).put("created", n.createdAt).put("updated", n.updatedAt)
+                .put("order", n.position).put("known", n.id in known))
         }
         val body = JSONObject().put("email", email).put("api_key", key).put("index_name", name)
             .put("changes", up).put("since", since).put("mark", mark).put("have", have)
@@ -174,17 +177,20 @@ class OpensolrApi(private val prefs: AppPrefs) {
         if (!json.optBoolean("status")) throw ServiceException(message(text).ifBlank { "Opensolr answered HTTP $code" })
         val saved = json.optJSONArray("saved") ?: JSONArray()
         val deleted = json.optJSONArray("deleted") ?: JSONArray()
+        val removed = json.optJSONArray("removed") ?: JSONArray()
         val notes = json.optJSONArray("notes") ?: JSONArray()
         val now = System.currentTimeMillis()
         SyncAnswer(
             saved = List(saved.length()) { saved.getJSONObject(it).let { o -> o.optString("id") to o.optLong("updated_l") } },
             deleted = List(deleted.length()) { deleted.optString(it) },
+            removed = List(removed.length()) { removed.optString(it) },
             notes = List(notes.length()) {
                 val o = notes.getJSONObject(it)
                 val created = o.optLong("created").takeIf { c -> c > 0 } ?: now
                 com.opensolr.notes.data.Note(
                     id = o.optString("id"), title = o.optString("title"), text = o.optString("text"), category = o.optString("category"),
                     createdAt = created, updatedAt = o.optLong("updated").takeIf { u -> u > 0 } ?: created, synced = true, deleted = false,
+                    position = o.optLong("order").coerceAtLeast(0L),
                 )
             },
             more = json.optBoolean("more"),
@@ -196,6 +202,17 @@ class OpensolrApi(private val prefs: AppPrefs) {
                     .takeIf { it.baseUrl.startsWith("https://") }
             },
         )
+    }
+
+    /**
+     * The notes index brought to the current notes config set on opensolr.com: its notes kept, the config set changed,
+     * the notes written back. Returns the config_version the index runs after.
+     */
+    suspend fun notesConfig(name: String): Int = withContext(Dispatchers.IO) {
+        val text = post(MANAGEMENT + "notes_config", form { add("core_name", name) })
+        val json = obj(text.substring(text.indexOf('{').coerceAtLeast(0)))
+        if (!json.optBoolean("status")) throw ServiceException(message(text))
+        json.optInt("config_version")
     }
 
     suspend fun embedQuery(name: String, query: String): FloatArray = withContext(Dispatchers.IO) {

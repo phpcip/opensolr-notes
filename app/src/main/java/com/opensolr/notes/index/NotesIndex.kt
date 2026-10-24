@@ -49,10 +49,6 @@ class NotesIndex(context: Context) {
             api.protectSearchPage(name, true)
             prefs.protectedIndex = name
         }
-        if (prefs.elevatedIndex != name) {
-            api.enableElevation(name)
-            prefs.elevatedIndex = name
-        }
         // A new or different index holds none of the notes synced before: they go up again instead of being dropped as gone
         if (!exists || prefs.indexName != name) db.markAllUnsynced()
         prefs.indexName = name
@@ -60,6 +56,18 @@ class NotesIndex(context: Context) {
         prefs.connectionJson = connection.toJson()
         verified = name
         connection
+    }
+
+    /**
+     * The index on the current notes config set, checked once per start of the app: one read of its version, and when
+     * it is older, notes_config on Opensolr keeps the notes, changes the config set and writes the notes back.
+     */
+    suspend fun ensureConfig(connection: IndexConnection) {
+        if (configured == connection.indexName) return
+        var version = SolrClient(connection).configVersion()
+        if (version < CONFIG_VERSION) version = api.notesConfig(connection.indexName)
+        if (version < CONFIG_VERSION) throw ServiceException("The notes index could not be brought to the current configuration")
+        configured = connection.indexName
     }
 
     /** The reader's answer: an existing index of the account, or null for this phone's own. */
@@ -116,6 +124,13 @@ class NotesIndex(context: Context) {
         private var verified: String? = null
 
         /** The index is read again from Opensolr at the next use: its Search Tuning may have changed. */
-        fun refresh() { verified = null }
+        fun refresh() { verified = null; configured = null }
+
+        /** The config set every notes index runs; raise it with Api_lib::NOTES_CONFIG_VERSION and the server's config set. */
+        const val CONFIG_VERSION = 1
+
+        /** The index found running the current config set in this process. */
+        @Volatile
+        private var configured: String? = null
     }
 }

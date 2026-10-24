@@ -57,6 +57,7 @@ import com.opensolr.notes.R
 import com.opensolr.notes.ui.AppViewModel
 import com.opensolr.notes.ui.ConfirmDialog
 import com.opensolr.notes.ui.Field
+import com.opensolr.notes.ui.DialogButton
 import com.opensolr.notes.ui.Hairline
 import com.opensolr.notes.ui.IconBtn
 import com.opensolr.notes.ui.Marks
@@ -67,7 +68,7 @@ import com.opensolr.notes.ui.textKeyboard
 import com.opensolr.notes.ui.theme.LocalPalette
 
 /**
- * One note: the text is what matters, the title and the category are optional.
+ * One note: the text is what matters, the title is optional.
  * Bold, italic and underline are shown as such; the note keeps them as <b>, <i>, <u> marks.
  */
 @Composable
@@ -76,7 +77,8 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
     val existing = remember(id) { id?.let { vm.db.get(it) } }
     var title by remember { mutableStateOf(existing?.title.orEmpty()) }
     var body by remember { mutableStateOf(TextFieldValue(existing?.text.orEmpty(), TextRange(0))) }
-    var category by remember { mutableStateOf(existing?.category.orEmpty()) }
+    // the category is no longer edited; a note that has one keeps it
+    val category = existing?.category.orEmpty()
     var confirmDelete by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
     // Undo and redo over the text: a run of typing is one step, a format change or a paste its own
@@ -114,7 +116,7 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
 
     fun saveAndClose() {
         val text = body.text
-        val changed = existing == null || existing.title != title.trim() || existing.text != text || existing.category != category.trim()
+        val changed = existing == null || existing.title != title.trim() || existing.text != text || false
         if (text.isNotBlank() && changed) vm.save(existing?.id, title, text, category) else vm.back()
     }
 
@@ -146,6 +148,68 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
         }
     }
 
+    // The link around the selection, if there is one: where its tags are in the text and its address
+    data class LinkAt(val openStart: Int, val openEnd: Int, val closeStart: Int, val closeEnd: Int, val url: String)
+    fun linkAt(): LinkAt? {
+        val t = body.text
+        val s = body.selection.min; val e = body.selection.max
+        val openRe = Regex("<a\\b((?:[^<>\"']|\"[^\"]*\"|'[^']*')*)>", RegexOption.IGNORE_CASE)
+        for (m in openRe.findAll(t)) {
+            if (m.range.first > s) break
+            val close = t.indexOf("</a>", m.range.last + 1, ignoreCase = true)
+            if (close < 0) continue
+            if (s >= m.range.first && e <= close + 4) return LinkAt(m.range.first, m.range.last + 1, close, close + 4, com.opensolr.notes.data.NoteText.href(m.groupValues[1]))
+        }
+        return null
+    }
+    var linkDialog by remember { mutableStateOf<LinkAt?>(null) }
+    var linkOpen by remember { mutableStateOf(false) }
+    var linkUrl by remember { mutableStateOf("") }
+    var linkText by remember { mutableStateOf("") }
+    var linkTextAtOpen by remember { mutableStateOf("") }
+    fun attr(u: String) = u.replace("&", "&amp;").replace("\"", "&quot;").replace("<", "&lt;")
+    /** The address as typed, made a full one: https:// in front of a bare host, mailto: in front of an address. */
+    fun fullUrl(u: String): String {
+        val v = u.trim()
+        if (Regex("^(https?:|mailto:)", RegexOption.IGNORE_CASE).containsMatchIn(v)) return v
+        return if (Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$").matches(v)) "mailto:$v" else "https://$v"
+    }
+    fun escText(v: String) = v.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    /** The link written into the note: its tag around the text (the text as it was when left unchanged, so its marks stay). */
+    fun applyLink() {
+        val url = linkUrl.trim()
+        linkOpen = false
+        if (url.isEmpty()) return
+        val full = fullUrl(url)
+        val t = body.text
+        val a = linkDialog
+        val tag = "<a href=\"" + attr(full) + "\">"
+        val typed = linkText.trim()
+        val changed = typed != linkTextAtOpen.trim()
+        val (s0, e0) = when {
+            a != null -> a.openStart to a.closeEnd
+            else -> body.selection.min to body.selection.max
+        }
+        val inner = when {
+            a != null && !changed -> t.substring(a.openEnd, a.closeStart)
+            a == null && !changed && e0 > s0 -> t.substring(s0, e0)
+            typed.isNotEmpty() -> escText(typed)
+            else -> escText(full.removePrefix("mailto:"))
+        }
+        val ins = tag + inner + "</a>"
+        remember(body, coalesce = false)
+        body = TextFieldValue(t.substring(0, s0) + ins + t.substring(e0), TextRange(s0 + ins.length))
+    }
+    fun removeLink() {
+        val a = linkDialog ?: return
+        linkOpen = false
+        val t = body.text
+        val inner = t.substring(a.openEnd, a.closeStart)
+        remember(body, coalesce = false)
+        body = TextFieldValue(t.substring(0, a.openStart) + inner + t.substring(a.closeEnd), TextRange(a.openStart, a.openStart + inner.length))
+    }
+    val context = androidx.compose.ui.platform.LocalContext.current
+
     Column(Modifier.fillMaxSize().imePadding()) {
         TopBar(if (existing == null) stringResource(R.string.new_note) else stringResource(R.string.edit_note), onBack = { saveAndClose() }) {
             if (existing != null) IconBtn(R.drawable.ic_delete, { confirmDelete = true })
@@ -153,11 +217,18 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
         }
         // The B / I / U row stays put under the top bar while the note scrolls.
         FormatRow(
-            onTag = { mark(it) }, wrap = wrap, onWrap = { wrap = !wrap; vm.prefs.wordWrap = wrap },
+            onTag = { mark(it) }, onLink = {
+                linkDialog = linkAt()
+                linkUrl = linkDialog?.url.orEmpty()
+                linkText = linkDialog?.let { com.opensolr.notes.data.NoteText.plain(body.text.substring(it.openEnd, it.closeStart)) }
+                    ?: com.opensolr.notes.data.NoteText.plain(body.text.substring(body.selection.min, body.selection.max))
+                linkTextAtOpen = linkText
+                linkOpen = true
+            }, wrap = wrap, onWrap = { wrap = !wrap; vm.prefs.wordWrap = wrap },
             canUndo = undoCount > 0, canRedo = redoCount > 0, onUndo = { undoNow() }, onRedo = { redoNow() },
         )
         Hairline()
-        // Title and category stay put; the text takes the rest of the screen and scrolls inside its own box
+        // The title stays put; the text takes the rest of the screen and scrolls inside its own box
         Column(Modifier.fillMaxSize()) {
             Field(value = title, onChange = { title = it }, hint = stringResource(R.string.title_hint), modifier = Modifier.fillMaxWidth())
             Hairline()
@@ -227,13 +298,47 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
                 )
             }
             Hairline()
-            // The category sits under the text, so it takes nothing from the writing space
-            CategoryField(category, vm.categories, onChange = { category = it })
-            Hairline()
             if (existing != null) {
                 Text(stringResource(R.string.created_on, fmtDate(existing.createdAt)), style = MaterialTheme.typography.labelSmall, color = p.muted, modifier = Modifier.padding(12.dp))
             }
         }
+    }
+    if (linkOpen) {
+        val pal = LocalPalette.current
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { linkOpen = false },
+            title = { Text(stringResource(R.string.link)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.link_text), style = MaterialTheme.typography.labelMedium, color = pal.muted)
+                    Spacer(Modifier.height(4.dp))
+                    Field(value = linkText, onChange = { linkText = it }, hint = stringResource(R.string.link_text), modifier = Modifier.fillMaxWidth().border(1.dp, pal.hairline))
+                    Spacer(Modifier.height(12.dp))
+                    Text(stringResource(R.string.link_url), style = MaterialTheme.typography.labelMedium, color = pal.muted)
+                    Spacer(Modifier.height(4.dp))
+                    Field(value = linkUrl, onChange = { linkUrl = it }, hint = stringResource(R.string.link_hint), modifier = Modifier.fillMaxWidth().border(1.dp, pal.hairline))
+                    Spacer(Modifier.height(6.dp))
+                    Text(stringResource(R.string.link_opens), style = MaterialTheme.typography.bodySmall, color = pal.muted)
+                    val existingLink = linkDialog
+                    if (existingLink != null) {
+                        Spacer(Modifier.height(12.dp))
+                        Row {
+                            if (existingLink.url.isNotEmpty()) {
+                                DialogButton(stringResource(R.string.open_link), {
+                                    linkOpen = false
+                                    runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(existingLink.url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                                })
+                                Spacer(Modifier.width(8.dp))
+                            }
+                            DialogButton(stringResource(R.string.remove_link), { removeLink() })
+                        }
+                    }
+                }
+            },
+            confirmButton = { DialogButton(stringResource(R.string.apply), { applyLink() }, accent = true, heavy = true, enabled = linkUrl.isNotBlank()) },
+            dismissButton = { DialogButton(stringResource(R.string.cancel), { linkOpen = false }) },
+            containerColor = pal.paper, titleContentColor = pal.ink, textContentColor = pal.muted,
+        )
     }
     if (confirmDelete && existing != null) {
         ConfirmDialog(
@@ -256,42 +361,9 @@ private class MultiTap {
     }
 }
 
-/** The category: a field with a dropdown of the categories in use (all of them on a tap, narrowed as you type); a tap on one fills it in. */
+/** B, I, U, the link, then the word-wrap switch, then undo and redo. */
 @Composable
-fun CategoryField(value: String, categories: List<String>, onChange: (String) -> Unit, hint: String = stringResource(R.string.category_hint), label: Boolean = true) {
-    val p = LocalPalette.current
-    var focused by remember { mutableStateOf(false) }
-    var dismissed by remember { mutableStateOf(false) }
-    var typed by remember { mutableStateOf(false) }
-    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
-    val q = value.trim()
-    val options = remember(q, categories, typed) {
-        val all = categories.filter { it != q }
-        if (!typed || q.isEmpty()) all.take(20) else all.filter { it.contains(q, ignoreCase = true) }.take(20)
-    }
-    Column(Modifier.fillMaxWidth().background(p.band).padding(top = if (label) 8.dp else 0.dp)) {
-        if (label) Text(stringResource(R.string.category), style = MaterialTheme.typography.labelMedium, color = p.muted, modifier = Modifier.padding(start = 12.dp))
-        Box(
-            Modifier.fillMaxWidth()
-                .onFocusChanged { focused = it.hasFocus; if (it.hasFocus) { dismissed = false; typed = false } }
-                // a tap on the field, focused already or not, opens the list again
-                .pointerInput(Unit) { awaitEachGesture { awaitFirstDown(requireUnconsumed = false); dismissed = false; typed = false } },
-        ) {
-            Field(value = value, onChange = { onChange(it); dismissed = false; typed = true }, hint = hint, modifier = Modifier.fillMaxWidth())
-            // closed only by a pick or by leaving the field: the keyboard opening must not close it
-            DropdownMenu(expanded = focused && !dismissed && options.isNotEmpty(), onDismissRequest = {}, properties = androidx.compose.ui.window.PopupProperties(focusable = false)) {
-                options.forEachIndexed { i, c ->
-                    if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(p.hairline))
-                    DropdownMenuItem(text = { Text(c, color = p.ink) }, onClick = { onChange(c); dismissed = true; focusManager.clearFocus() })
-                }
-            }
-        }
-    }
-}
-
-/** B, I, U, then the word-wrap switch, then undo and redo. */
-@Composable
-private fun FormatRow(onTag: (String) -> Unit, wrap: Boolean, onWrap: () -> Unit, canUndo: Boolean, canRedo: Boolean, onUndo: () -> Unit, onRedo: () -> Unit) {
+private fun FormatRow(onTag: (String) -> Unit, onLink: () -> Unit, wrap: Boolean, onWrap: () -> Unit, canUndo: Boolean, canRedo: Boolean, onUndo: () -> Unit, onRedo: () -> Unit) {
     val p = LocalPalette.current
     @Composable fun IconBox(icon: Int, enabled: Boolean, on: Boolean = false, onClick: () -> Unit) {
         Box(
@@ -319,6 +391,7 @@ private fun FormatRow(onTag: (String) -> Unit, wrap: Boolean, onWrap: () -> Unit
             }
             Spacer(Modifier.width(6.dp))
         }
+        IconBox(R.drawable.ic_link, enabled = true, onClick = onLink)
         Spacer(Modifier.width(6.dp))
         IconBox(R.drawable.ic_wrap, enabled = true, on = wrap, onClick = onWrap)
         Spacer(Modifier.width(6.dp))

@@ -23,13 +23,10 @@
     <string name="last_7_days">Last 7 days</string>
     <string name="last_30_days">Last 30 days</string>
     <string name="this_year">This year</string>
-    <string name="all_categories">All categories</string>
     <string name="new_note">New note</string>
     <string name="edit_note">Note</string>
     <string name="title_hint">Title (optional)</string>
     <string name="text_hint">Write your note</string>
-    <string name="category">Category</string>
-    <string name="category_hint">Optional</string>
     <string name="created_on">Created %1$s</string>
     <string name="delete">Delete</string>
     <string name="delete_note_q">Delete this note?</string>
@@ -62,4 +59,16 @@
     <string name="check_for_updates">Check for updates</string>
     <string name="checking">Checking…</string>
     <string name="up_to_date">You have the latest version.</string>
+    <string name="link">Link</string>
+    <string name="link_hint">https://</string>
+    <string name="apply">Apply</string>
+    <string name="remove_link">Remove link</string>
+    <string name="open_link">Open link</string>
+    <string name="link_text">Text</string>
+    <string name="link_url">URL</string>
+    <string name="link_opens">Opens in the browser.</string>
+    <string name="selected_count">%1$d selected</string>
+    <string name="delete_selected">Delete selected</string>
+    <plurals name="delete_notes_q"><item quantity="one">Delete %1$d note?</item><item quantity="other">Delete %1$d notes?</item></plurals>
+    <string name="delete_notes_text">They are removed from this phone, from your other devices and from your index.</string>
 </resources>

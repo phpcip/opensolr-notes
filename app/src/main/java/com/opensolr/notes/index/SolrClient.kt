@@ -32,6 +32,13 @@ class SolrClient(connection: IndexConnection) {
         })
     }
 
+    /** The config_version the index runs (its /opensolr-notes-config handler); 0 when it runs none yet. */
+    suspend fun configVersion(): Int = withContext(Dispatchers.IO) {
+        val (code, text) = sendRaw { base, auth -> Request.Builder().url("$base/opensolr-notes-config?wt=json").header("Authorization", auth).get().build() }
+        if (code == 404 || code == 400) return@withContext 0
+        JSONObject(check(code, text)).optJSONObject("responseHeader")?.optJSONObject("params")?.optString("config_version")?.toIntOrNull() ?: 0
+    }
+
     /** Searchable at once (soft commit), so the pull that follows finds the note and does not take it for deleted. */
     suspend fun add(docs: JSONArray, commitWithinMs: Int = DEFAULT_COMMIT_MS) = update(docs.toString(), commitWithinMs, "&softCommit=true")
 

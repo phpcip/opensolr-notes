@@ -49,7 +49,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var signedIn by mutableStateOf(prefs.signedIn); private set
     var screen by mutableStateOf<Screen>(if (prefs.signedIn) Screen.Notes else Screen.Setup); private set
     var notes by mutableStateOf<List<Note>>(emptyList()); private set
-    var categories by mutableStateOf<List<String>>(emptyList()); private set
     var filters by mutableStateOf(Filters()); private set
     var query by mutableStateOf(""); private set
     var hits by mutableStateOf<List<Hit>?>(null); private set
@@ -94,9 +93,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val f = filters
         val want = maxOf(NotesDb.PAGE, notes.size)
         viewModelScope.launch(Dispatchers.IO) {
-            val list = db.all(f.category, f.from, f.to, limit = want)
-            val cats = db.categories()
-            withContext(Dispatchers.Main) { notes = list; notesEnd = list.size < want; categories = cats }
+            val list = db.all(f.from, f.to, limit = want)
+            withContext(Dispatchers.Main) { notes = list; notesEnd = list.size < want }
         }
     }
 
@@ -107,7 +105,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val f = filters
         val offset = notes.size
         viewModelScope.launch(Dispatchers.IO) {
-            val page = db.all(f.category, f.from, f.to, limit = NotesDb.PAGE, offset = offset)
+            val page = db.all(f.from, f.to, limit = NotesDb.PAGE, offset = offset)
             withContext(Dispatchers.Main) {
                 if (notes.size == offset) { notes = notes + page; notesEnd = page.size < NotesDb.PAGE }
                 loadingMore = false
@@ -240,7 +238,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** A note dragged to another place: this phone's order, kept across restarts, never sent to the index. */
+    /** A note dragged to another place: the list on screen follows the finger; the order is written when the drag ends. */
     fun move(fromId: String, toId: String) {
         val ids = notes.map { it.id }.toMutableList()
         val from = ids.indexOf(fromId); val to = ids.indexOf(toId)
@@ -249,8 +247,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val byId = notes.associateBy { it.id }
         // The list on screen is the order; no reload here, a drag moves many times a second and reloads landing
         // out of turn put an older order back under the finger.
-        db.setOrder(ids)
         notes = ids.map { byId.getValue(it) }
+    }
+
+    /** The drag ended: the moved note's place written (usually that note alone) and sent, so every device shows this order. */
+    fun moveDone(id: String) {
+        val ids = notes.map { it.id }
+        viewModelScope.launch(Guard) {
+            withContext(Dispatchers.IO) { db.placeMoved(ids, id) }
+            pushNow()
+        }
     }
 
     fun delete(id: String) {
@@ -260,6 +266,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             reload()
             back()
             busy = false
+            pushNow()
+        }
+    }
+
+    /** The picked notes deleted here at once and sent in one call; the other devices drop them at their next sync. */
+    fun deleteMany(ids: Set<String>) {
+        if (ids.isEmpty()) return
+        viewModelScope.launch(Guard) {
+            withContext(Dispatchers.IO) { db.deleteMany(ids) }
+            reload()
             pushNow()
         }
     }
@@ -346,7 +362,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         prefs.clearAccountData()
         index.forget()
         notes = emptyList()
-        categories = emptyList()
         filters = Filters()
         query = ""
         hits = null

@@ -1,6 +1,7 @@
 package com.opensolr.notes.ui.screens
 
 import androidx.compose.foundation.background
+import com.opensolr.notes.ui.dragSelect
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,6 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -78,19 +80,40 @@ import com.opensolr.notes.ui.theme.LocalPalette
 import java.time.LocalDate
 import java.time.ZoneId
 
-/** Every note, newest first; a search runs in the index; chips filter by category and by when the note was written. */
+/** Every note, newest first; a search runs in the index; chips filter by when the note was written. */
 @kotlin.OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun NotesScreen(vm: AppViewModel) {
     val p = LocalPalette.current
     val view = LocalView.current
     var showFilters by remember { mutableStateOf(false) }
+    // Notes picked by a long tap; while any is picked a tap picks or unpicks, and the bar offers Delete
+    var selected by remember { mutableStateOf(setOf<String>()) }
+    var confirmMany by remember { mutableStateOf(false) }
+    val pick: (String) -> Unit = { id -> Haptics.tick(view, true); selected = if (id in selected) selected - id else selected + id }
+    // A long press, then a drag: the range from the first note to the finger is picked, or unpicked when the first was picked
+    var dragBase by remember { mutableStateOf<Set<String>?>(null) }
+    var dragUnpick by remember { mutableStateOf(false) }
+    val dragStart: (String) -> Unit = { id -> Haptics.tick(view, true); dragBase = selected; dragUnpick = id in selected; selected = if (dragUnpick) selected - id else selected + id }
+    val dragRange: (List<String>) -> Unit = { ids -> Haptics.tick(view, false); dragBase?.let { base -> selected = if (dragUnpick) base - ids.toSet() else base + ids } }
+    val dragEnd: () -> Unit = { dragBase = null }
+    androidx.activity.compose.BackHandler(enabled = selected.isNotEmpty()) { selected = emptySet() }
     Column(Modifier.fillMaxSize()) {
-        TopBar(stringResource(R.string.app_name)) {
+        if (selected.isNotEmpty()) {
+            TopBar(stringResource(R.string.selected_count, selected.size), onBack = { selected = emptySet() }) {
+                IconBtn(R.drawable.ic_delete, { confirmMany = true }, strong = true, contentDescription = stringResource(R.string.delete_selected))
+            }
+        } else TopBar(stringResource(R.string.app_name)) {
             // sync or search in progress
             if (vm.searching && !vm.syncing) androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), color = p.accent, strokeWidth = 2.dp)
             IconBtn(R.drawable.ic_add, { vm.open(null) }, strong = true)
             IconBtn(R.drawable.ic_settings, { vm.go(Screen.Settings) })
+        }
+        if (confirmMany) {
+            ConfirmDialog(
+                title = pluralStringResource(R.plurals.delete_notes_q, selected.size, selected.size), text = stringResource(R.string.delete_notes_text), action = stringResource(R.string.delete),
+                onDismiss = { confirmMany = false }, onConfirm = { confirmMany = false; vm.deleteMany(selected); selected = emptySet() },
+            )
         }
         Row(Modifier.fillMaxWidth().background(p.band).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(1f).background(p.paper).padding(horizontal = 12.dp, vertical = 10.dp)) {
@@ -134,13 +157,16 @@ fun NotesScreen(vm: AppViewModel) {
                     }
                 }
                 NearEnd(resultState) { vm.loadMoreHits() }
-                LazyColumn(Modifier.fillMaxSize(), state = resultState) {
+                val firstHit = if (found.isEmpty()) 1 else if (aiCard) 1 else 0
+                LazyColumn(Modifier.fillMaxSize().dragSelect(resultState, idAt = { found.getOrNull(it - firstHit)?.first?.id }, onStart = dragStart, onRange = dragRange, onEnd = dragEnd), state = resultState) {
                     if (found.isEmpty() && !vm.searching) item { Empty(stringResource(R.string.no_results)) }
                     // AI Hints, as on the hosted search page: an answer to the search from the notes it found
                     if (aiCard) item(key = "ai") {
                         AiHintsCard(vm.aiText, vm.aiRunning, onAsk = { vm.askAi() }, onClose = { vm.stopAi() })
                     }
-                    items(found, key = { it.first.id }) { (note, snippet) -> NoteRow(note, snippet, onOpen = { vm.open(note.id) }) }
+                    items(found, key = { it.first.id }) { (note, snippet) ->
+                        NoteRow(note, snippet, onOpen = { if (selected.isNotEmpty()) pick(note.id) else vm.open(note.id) }, picked = note.id in selected)
+                    }
                 }
                 FastScroller(resultState, resultIndex)
             } else {
@@ -189,7 +215,7 @@ fun NotesScreen(vm: AppViewModel) {
                     }
                 }
                 NearEnd(listState) { vm.loadMoreNotes() }
-                LazyColumn(Modifier.fillMaxSize(), state = listState) {
+                LazyColumn(Modifier.fillMaxSize().dragSelect(listState, idAt = { vm.notes.getOrNull(it)?.id }, onStart = dragStart, onRange = dragRange, onEnd = dragEnd), state = listState) {
                     if (vm.notes.isEmpty()) item { Empty(stringResource(R.string.no_notes)) }
                     items(vm.notes, key = { it.id }) { note ->
                         val isDragged = dragging == note.id
@@ -203,14 +229,14 @@ fun NotesScreen(vm: AppViewModel) {
                                 note = note,
                                 onDelete = { confirmDelete = note.id },
                             ) {
-                                NoteRow(note, null, onOpen = { vm.open(note.id) }) {
+                                NoteRow(note, null, onOpen = { if (selected.isNotEmpty()) pick(note.id) else vm.open(note.id) }, picked = note.id in selected) {
                                     // The grip: three lines at the right of the row; a drag on it moves the note
                                     Box(
                                         Modifier.size(44.dp).pointerInput(note.id) {
                                             detectDragGestures(
                                                 onDragStart = { dragging = note.id; dragOffset = 0f; Haptics.tick(view, true) },
-                                                onDragEnd = { dragging = null; dragOffset = 0f },
-                                                onDragCancel = { dragging = null; dragOffset = 0f },
+                                                onDragEnd = { dragging = null; dragOffset = 0f; vm.moveDone(note.id) },
+                                                onDragCancel = { dragging = null; dragOffset = 0f; vm.moveDone(note.id) },
                                                 onDrag = { change, amount -> change.consume(); dragBy(note.id, amount.y) },
                                             )
                                         },
@@ -256,8 +282,6 @@ private fun FilterRow(vm: AppViewModel) {
                 vm.applyFilters(f.copy(from = today.withDayOfYear(1).atStartOfDay(zone).toInstant().toEpochMilli(), to = null))
             }
         }
-        // The category to show: typed or picked from the dropdown of the categories in use; emptied = all.
-        CategoryField(f.category.orEmpty(), vm.categories, onChange = { vm.applyFilters(f.copy(category = it.trim().ifBlank { null })) }, hint = stringResource(R.string.all_categories), label = false)
         Hairline()
     }
 }
@@ -333,9 +357,11 @@ private fun SwipeRow(note: Note, onDelete: () -> Unit, content: @Composable () -
 
 @androidx.compose.runtime.Composable
 @kotlin.OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-private fun NoteRow(note: Note, snippet: String?, onOpen: () -> Unit, trailing: (@Composable () -> Unit)? = null) {
+private fun NoteRow(note: Note, snippet: String?, onOpen: () -> Unit, picked: Boolean = false, trailing: (@Composable () -> Unit)? = null) {
     val p = LocalPalette.current
-    Row(Modifier.fillMaxWidth().hapticClickable(onClick = onOpen), verticalAlignment = Alignment.CenterVertically) {
+    // the long press that picks a note is the list's (dragSelect), so a drag after it picks a range
+    Row(Modifier.fillMaxWidth().background(if (picked) p.band else p.paper).hapticClickable(onClick = onOpen), verticalAlignment = Alignment.CenterVertically) {
+    if (picked) Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = p.accent, modifier = Modifier.padding(start = 14.dp).size(22.dp))
     Column(Modifier.weight(1f).padding(start = 16.dp, end = if (trailing != null) 4.dp else 16.dp, top = 12.dp, bottom = 12.dp)) {
         Text(com.opensolr.notes.ui.Marks.plainStyled(note.shownTitle.ifBlank { stringResource(R.string.untitled) }), style = MaterialTheme.typography.titleSmall, color = p.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.height(3.dp))
@@ -346,13 +372,9 @@ private fun NoteRow(note: Note, snippet: String?, onOpen: () -> Unit, trailing: 
             if (body.isNotBlank()) Text(body, style = MaterialTheme.typography.bodySmall, color = p.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.height(5.dp))
-        // date, category and state: wrapped to a second line when the row is too narrow, never cut
+        // date and state: wrapped to a second line when the row is too narrow, never cut
         androidx.compose.foundation.layout.FlowRow(verticalArrangement = Arrangement.Center) {
             Text(fmtDate(note.createdAt), style = MaterialTheme.typography.labelSmall, color = p.muted)
-            if (note.category.isNotBlank()) {
-                Spacer(Modifier.width(10.dp))
-                Text(note.category, style = MaterialTheme.typography.labelSmall, color = p.accent, maxLines = 1, softWrap = false)
-            }
             if (!note.synced) {
                 Spacer(Modifier.width(10.dp))
                 Text(stringResource(R.string.not_synced), style = MaterialTheme.typography.labelSmall, color = p.muted)

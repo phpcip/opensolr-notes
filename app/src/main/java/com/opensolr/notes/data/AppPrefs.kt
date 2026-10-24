@@ -31,7 +31,7 @@ class AppPrefs(context: Context) {
 
     /** Everything remembered about the account's index and sync; the app's own settings (haptics, sections) stay. */
     fun clearAccountData() {
-        sp.edit().remove(K_PROTECTED).remove("elevated_index").remove(K_PULL).remove(K_VECTOR).apply()
+        sp.edit().remove(K_PROTECTED).remove("elevated_index").remove(K_PULL).remove(K_VECTOR).remove("sync_cursor").apply()
     }
 
     /** This install's id, as Opensolr Photos and Mail have one: the key issued to it is revocable from Account > Devices. */
