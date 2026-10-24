@@ -67,7 +67,7 @@ import com.opensolr.notes.ui.textKeyboard
 import com.opensolr.notes.ui.theme.LocalPalette
 
 /**
- * One note: the text is what matters, the title is optional, the category comes from the AI or from you.
+ * One note: the text is what matters, the title and the category are optional.
  * Bold, italic and underline are shown as such; the note keeps them as <b>, <i>, <u> marks.
  */
 @Composable

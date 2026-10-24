@@ -4,7 +4,7 @@
     <string name="cancel">Abbrechen</string>
     <string name="cd_clear_selection">Auswahl aufheben</string>
     <string name="setup_lead">Notizen in deinem eigenen Opensolr Index: nach Wörtern und Bedeutung durchsuchbar, auf jedem Telefon mit deinem Konto.</string>
-    <string name="setup_body">Melde dich mit deinem Opensolr-Konto an. Die App legt einen Index für deine Notizen an, schützt dessen Suchseite mit dem Index-Passwort und lässt Opensolr AI für jede Notiz eine Kategorie aus zwei Wörtern wählen.</string>
+    <string name="setup_body">Melde dich mit deinem Opensolr-Konto an. Die App legt einen Index für deine Notizen an und schützt dessen Suchseite mit dem Index-Passwort.</string>
     <string name="sign_in">Mit Opensolr anmelden</string>
     <string name="search_hint">Notizen durchsuchen</string>
     <string name="no_results">Nichts gefunden.</string>
@@ -22,7 +22,7 @@
     <string name="title_hint">Titel (optional)</string>
     <string name="text_hint">Notiz schreiben</string>
     <string name="category">Kategorie</string>
-    <string name="category_hint">Von der KI gesetzt, wenn leer</string>
+    <string name="category_hint">Optional</string>
     <string name="created_on">Erstellt %1$s</string>
     <string name="delete">Löschen</string>
     <string name="delete_note_q">Notiz löschen?</string>
@@ -41,8 +41,6 @@
     <string name="ai">KI</string>
     <string name="ai_search">Suche nach Bedeutung</string>
     <string name="ai_search_hint">Wörter und Bedeutung zusammen, wie auf search.opensolr.com.</string>
-    <string name="ai_category">Kategorien von der KI</string>
-    <string name="ai_category_hint">Zwei Wörter für jede Notiz, die ohne Kategorie gespeichert wird.</string>
     <string name="app">App</string>
     <string name="haptics">Vibration</string>
     <string name="haptics_hint">Ein Tick bei Tasten und Schaltern.</string>

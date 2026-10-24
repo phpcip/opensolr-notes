@@ -126,15 +126,18 @@ class OpensolrApi(private val prefs: AppPrefs) {
 
     // ---------- AI ----------
 
-    /** One vector per text, or null for a text the embedder gave none for. */
-    suspend fun batchEmbed(name: String, texts: List<String>): List<FloatArray?> = withContext(Dispatchers.IO) {
-        val body = JSONObject().put("email", email).put("api_key", key).put("index_name", name).put("payloads", JSONArray(texts))
-        val text = execute(Request.Builder().url(AI + "batch_embed").post(body.toString().toRequestBody(JSON)).build())
+    /**
+     * The note written to the index in one call: Opensolr builds the document, makes its vector and writes it.
+     * Returns the updated_l the index now holds.
+     */
+    suspend fun notesSave(name: String, note: com.opensolr.notes.data.Note): Long = withContext(Dispatchers.IO) {
+        val n = JSONObject().put("id", note.id).put("title", note.title).put("text", note.text).put("category", note.category)
+            .put("created", note.createdAt).put("updated", note.updatedAt)
+        val body = JSONObject().put("email", email).put("api_key", key).put("index_name", name).put("note", n)
+        val text = execute(Request.Builder().url(AI + "notes_save").post(body.toString().toRequestBody(JSON)).build())
         val json = obj(text)
-        if (json.optString("msg") == "VECTOR_NOT_ALLOWED") throw VectorNotAllowedException()
-        val vectors = json.optJSONArray("embeddings") ?: throw ServiceException(json.optString("error").ifBlank { message(text) })
-        if (vectors.length() != texts.size) throw ServiceException("Embedding count mismatch")
-        (0 until vectors.length()).map { i -> vectors.optJSONArray(i)?.takeIf { it.length() > 0 }?.let { floats(it) } }
+        if (!json.optBoolean("status")) throw ServiceException(message(text))
+        json.optLong("updated_l", note.updatedAt)
     }
 
     suspend fun embedQuery(name: String, query: String): FloatArray = withContext(Dispatchers.IO) {
@@ -143,24 +146,6 @@ class OpensolrApi(private val prefs: AppPrefs) {
         if (text.startsWith("[")) return@withContext floats(JSONArray(text))
         if (obj(text).optString("msg") == "VECTOR_NOT_ALLOWED") throw VectorNotAllowedException()
         throw ServiceException(message(text))
-    }
-
-    /** The whole answer of the AI to [instruction], streamed by the server and joined here. */
-    suspend fun aiAnswer(name: String, instruction: String): String = withContext(Dispatchers.IO) {
-        val form = FormBody.Builder()
-            .add("email", email).add("api_key", key).add("index_name", name)
-            .add("language", "English").add("instruction", instruction).add("temperature", "0.2").add("stream", "yes")
-            .build()
-        val req = Request.Builder().url(AI + "ai_summary").post(form).build()
-        Http.stream.newCall(req).execute().use { r ->
-            val text = r.body?.string().orEmpty()
-            if (!r.isSuccessful) {
-                classify(r.code, text, r.header("Retry-After"))
-                throw ServiceException("HTTP ${r.code}")
-            }
-            if (text.contains("VECTOR_NOT_ALLOWED")) throw VectorNotAllowedException()
-            text
-        }
     }
 
     /** The answer streamed as the AI writes it, chunk by chunk; cancelling the coroutine closes the connection. */

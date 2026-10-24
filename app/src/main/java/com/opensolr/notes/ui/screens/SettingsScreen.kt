@@ -46,7 +46,6 @@ fun SettingsScreen(vm: AppViewModel) {
     val view = LocalView.current
     var confirmSignOut by remember { mutableStateOf(false) }
     var aiSearch by remember { mutableStateOf(vm.prefs.aiSearch) }
-    var aiCategory by remember { mutableStateOf(vm.prefs.aiCategory) }
     var haptics by remember { mutableStateOf(vm.prefs.haptics) }
     var open by remember { mutableStateOf(vm.prefs.openSections) }
     fun toggle(key: String) {
@@ -81,7 +80,6 @@ fun SettingsScreen(vm: AppViewModel) {
             }
             Zone(stringResource(R.string.ai), 0, "ai" in open, { toggle("ai") }) {
                 ToggleRow(stringResource(R.string.ai_search), stringResource(R.string.ai_search_hint), aiSearch) { aiSearch = it; vm.prefs.aiSearch = it; Haptics.toggle(view, it) }
-                ToggleRow(stringResource(R.string.ai_category), stringResource(R.string.ai_category_hint), aiCategory) { aiCategory = it; vm.prefs.aiCategory = it; Haptics.toggle(view, it) }
             }
             Zone(stringResource(R.string.app), 0, "app" in open, { toggle("app") }) {
                 ToggleRow(stringResource(R.string.haptics), stringResource(R.string.haptics_hint), haptics) { haptics = it; vm.prefs.haptics = it; Haptics.enabled = it; Haptics.toggle(view, it) }

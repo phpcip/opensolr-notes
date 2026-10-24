@@ -4,7 +4,7 @@
     <string name="cancel">Anulează</string>
     <string name="cd_clear_selection">Golește selecția</string>
     <string name="setup_lead">Note care stau în propriul tău Opensolr Index: căutabile după cuvinte și după înțeles, pe orice telefon logat în contul tău.</string>
-    <string name="setup_body">Loghează-te cu contul Opensolr. Aplicația creează un index pentru notele tale, pune pagina lui de căutare în spatele parolei indexului și cere Opensolr AI o categorie din două cuvinte pentru fiecare notă.</string>
+    <string name="setup_body">Loghează-te cu contul Opensolr. Aplicația creează un index pentru notele tale și pune pagina lui de căutare în spatele parolei indexului.</string>
     <string name="sign_in">Loghează-te cu Opensolr</string>
     <string name="search_hint">Caută în note</string>
     <string name="no_results">Nimic găsit.</string>
@@ -22,7 +22,7 @@
     <string name="title_hint">Titlu (opțional)</string>
     <string name="text_hint">Scrie nota</string>
     <string name="category">Categorie</string>
-    <string name="category_hint">Pusă de AI dacă e goală</string>
+    <string name="category_hint">Opțională</string>
     <string name="created_on">Creată %1$s</string>
     <string name="delete">Șterge</string>
     <string name="delete_note_q">Ștergi nota?</string>
@@ -41,8 +41,6 @@
     <string name="ai">AI</string>
     <string name="ai_search">Căutare după înțeles</string>
     <string name="ai_search_hint">Cuvinte și înțeles împreună, ca pe search.opensolr.com.</string>
-    <string name="ai_category">Categorii de la AI</string>
-    <string name="ai_category_hint">O categorie din două cuvinte pentru fiecare notă salvată fără una.</string>
     <string name="app">Aplicație</string>
     <string name="haptics">Vibrație</string>
     <string name="haptics_hint">Un tic pe butoane și comutatoare.</string>

@@ -91,10 +91,6 @@ class AppPrefs(context: Context) {
         get() = sp.getBoolean("ai_search", true)
         set(v) = sp.edit().putBoolean("ai_search", v).apply()
 
-    var aiCategory: Boolean
-        get() = sp.getBoolean("ai_category", true)
-        set(v) = sp.edit().putBoolean("ai_category", v).apply()
-
     var lastUpdateCheck: Long
         get() = sp.getLong("last_update_check", 0L)
         set(v) = sp.edit().putLong("last_update_check", v).apply()

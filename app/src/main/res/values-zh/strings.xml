@@ -4,7 +4,7 @@
     <string name="cancel">取消</string>
     <string name="cd_clear_selection">清除选择</string>
     <string name="setup_lead">保存在你自己的 Opensolr Index 中的笔记：可按词语和语义搜索，登录同一账户的每部手机都能使用。</string>
-    <string name="setup_body">使用 Opensolr 账户登录。应用会为你的笔记创建一个索引，用索引密码保护其搜索页面，并让 Opensolr AI 为每条笔记给出两个词的分类。</string>
+    <string name="setup_body">使用 Opensolr 账户登录。应用会为你的笔记创建一个索引，并用索引密码保护其搜索页面。</string>
     <string name="sign_in">使用 Opensolr 登录</string>
     <string name="search_hint">搜索笔记</string>
     <string name="no_results">没有结果。</string>
@@ -22,7 +22,7 @@
     <string name="title_hint">标题（可选）</string>
     <string name="text_hint">写下你的笔记</string>
     <string name="category">分类</string>
-    <string name="category_hint">留空则由 AI 设置</string>
+    <string name="category_hint">可选</string>
     <string name="created_on">创建于 %1$s</string>
     <string name="delete">删除</string>
     <string name="delete_note_q">删除这条笔记？</string>
@@ -41,8 +41,6 @@
     <string name="ai">AI</string>
     <string name="ai_search">按语义搜索</string>
     <string name="ai_search_hint">词语与语义结合，与 search.opensolr.com 相同。</string>
-    <string name="ai_category">AI 分类</string>
-    <string name="ai_category_hint">为每条未设分类的笔记给出两个词的分类。</string>
     <string name="app">应用</string>
     <string name="haptics">振动</string>
     <string name="haptics_hint">按钮和开关上的轻微振动。</string>

@@ -4,7 +4,7 @@
     <string name="cancel">Cancelar</string>
     <string name="cd_clear_selection">Quitar selección</string>
     <string name="setup_lead">Notas en tu propio Opensolr Index: buscables por palabras y por significado, en cada teléfono con tu cuenta.</string>
-    <string name="setup_body">Inicia sesión con tu cuenta de Opensolr. La app crea un índice para tus notas, protege su página de búsqueda con la contraseña del índice y pide a Opensolr AI una categoría de dos palabras para cada nota.</string>
+    <string name="setup_body">Inicia sesión con tu cuenta de Opensolr. La app crea un índice para tus notas y protege su página de búsqueda con la contraseña del índice.</string>
     <string name="sign_in">Iniciar sesión con Opensolr</string>
     <string name="search_hint">Buscar en las notas</string>
     <string name="no_results">Nada encontrado.</string>
@@ -22,7 +22,7 @@
     <string name="title_hint">Título (opcional)</string>
     <string name="text_hint">Escribe tu nota</string>
     <string name="category">Categoría</string>
-    <string name="category_hint">La pone la IA si está vacía</string>
+    <string name="category_hint">Opcional</string>
     <string name="created_on">Creada el %1$s</string>
     <string name="delete">Eliminar</string>
     <string name="delete_note_q">¿Eliminar esta nota?</string>
@@ -41,8 +41,6 @@
     <string name="ai">IA</string>
     <string name="ai_search">Búsqueda por significado</string>
     <string name="ai_search_hint">Palabras y significado juntos, como en search.opensolr.com.</string>
-    <string name="ai_category">Categorías por IA</string>
-    <string name="ai_category_hint">Dos palabras para cada nota guardada sin categoría.</string>
     <string name="app">App</string>
     <string name="haptics">Vibración</string>
     <string name="haptics_hint">Un toque en botones e interruptores.</string>

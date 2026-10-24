@@ -236,7 +236,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             reload()
             back()
             busy = false
-            syncNow()
+            pushNow()
         }
     }
 
@@ -260,7 +260,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             reload()
             back()
             busy = false
-            syncNow()
+            pushNow()
+        }
+    }
+
+    /** A saved or deleted note sent on its own, in one call; the full sync waits for the next open or refresh. */
+    private fun pushNow() {
+        if (!prefs.signedIn) return
+        viewModelScope.launch(Guard) {
+            try {
+                problem = withContext(Dispatchers.IO) { sync.push() }
+                reload()
+            } catch (e: SignInRequiredException) {
+                onSessionEnded()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                problem = e.message
+            }
         }
     }
 

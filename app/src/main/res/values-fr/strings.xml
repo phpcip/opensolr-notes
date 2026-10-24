@@ -4,7 +4,7 @@
     <string name="cancel">Annuler</string>
     <string name="cd_clear_selection">Effacer la sélection</string>
     <string name="setup_lead">Des notes dans ton propre Opensolr Index : cherchables par mots et par sens, sur chaque téléphone connecté à ton compte.</string>
-    <string name="setup_body">Connecte-toi avec ton compte Opensolr. L’app crée un index pour tes notes, protège sa page de recherche avec le mot de passe de l’index et demande à Opensolr AI une catégorie de deux mots pour chaque note.</string>
+    <string name="setup_body">Connecte-toi avec ton compte Opensolr. L’app crée un index pour tes notes et protège sa page de recherche avec le mot de passe de l’index.</string>
     <string name="sign_in">Se connecter avec Opensolr</string>
     <string name="search_hint">Chercher dans les notes</string>
     <string name="no_results">Rien trouvé.</string>
@@ -22,7 +22,7 @@
     <string name="title_hint">Titre (facultatif)</string>
     <string name="text_hint">Écris ta note</string>
     <string name="category">Catégorie</string>
-    <string name="category_hint">Choisie par l’IA si vide</string>
+    <string name="category_hint">Facultative</string>
     <string name="created_on">Créée le %1$s</string>
     <string name="delete">Supprimer</string>
     <string name="delete_note_q">Supprimer cette note ?</string>
@@ -41,8 +41,6 @@
     <string name="ai">IA</string>
     <string name="ai_search">Recherche par sens</string>
     <string name="ai_search_hint">Mots et sens ensemble, comme sur search.opensolr.com.</string>
-    <string name="ai_category">Catégories par l’IA</string>
-    <string name="ai_category_hint">Deux mots pour chaque note enregistrée sans catégorie.</string>
     <string name="app">Application</string>
     <string name="haptics">Vibration</string>
     <string name="haptics_hint">Un tic sur les boutons et interrupteurs.</string>

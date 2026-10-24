@@ -4,7 +4,7 @@
     <string name="cancel">Cancel</string>
     <string name="cd_clear_selection">Clear selection</string>
     <string name="setup_lead">Notes that live in your own Opensolr Index: searchable by words and by meaning, on every phone signed in to your account.</string>
-    <string name="setup_body">Sign in with your Opensolr account. The app creates one index for your notes, puts its search page behind the index password, and asks Opensolr AI for a two-word category for each note.</string>
+    <string name="setup_body">Sign in with your Opensolr account. The app creates one index for your notes and puts its search page behind the index password.</string>
     <string name="sign_in">Sign in with Opensolr</string>
     <string name="search_hint">Search your notes</string>
     <string name="no_results">Nothing found.</string>
@@ -29,7 +29,7 @@
     <string name="title_hint">Title (optional)</string>
     <string name="text_hint">Write your note</string>
     <string name="category">Category</string>
-    <string name="category_hint">Set by AI when empty</string>
+    <string name="category_hint">Optional</string>
     <string name="created_on">Created %1$s</string>
     <string name="delete">Delete</string>
     <string name="delete_note_q">Delete this note?</string>
@@ -48,8 +48,6 @@
     <string name="ai">AI</string>
     <string name="ai_search">Search by meaning</string>
     <string name="ai_search_hint">Words and meaning together, as on search.opensolr.com.</string>
-    <string name="ai_category">Categories by AI</string>
-    <string name="ai_category_hint">A two-word category for every note saved without one.</string>
     <string name="app">App</string>
     <string name="haptics">Vibration</string>
     <string name="haptics_hint">A tick on buttons and switches.</string>

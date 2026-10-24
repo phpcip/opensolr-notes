@@ -4,7 +4,7 @@
     <string name="cancel">キャンセル</string>
     <string name="cd_clear_selection">選択を解除</string>
     <string name="setup_lead">自分の Opensolr Index に保存されるメモ。言葉でも意味でも検索でき、アカウントにサインインしたどの端末でも使えます。</string>
-    <string name="setup_body">Opensolr アカウントでサインインします。アプリはメモ用のインデックスを作り、その検索ページをインデックスのパスワードで保護し、各メモに2語のカテゴリを Opensolr AI に付けてもらいます。</string>
+    <string name="setup_body">Opensolr アカウントでサインインします。アプリはメモ用のインデックスを作り、その検索ページをインデックスのパスワードで保護します。</string>
     <string name="sign_in">Opensolr でサインイン</string>
     <string name="search_hint">メモを検索</string>
     <string name="no_results">見つかりません。</string>
@@ -22,7 +22,7 @@
     <string name="title_hint">タイトル（任意）</string>
     <string name="text_hint">メモを書く</string>
     <string name="category">カテゴリ</string>
-    <string name="category_hint">空なら AI が設定</string>
+    <string name="category_hint">任意</string>
     <string name="created_on">作成 %1$s</string>
     <string name="delete">削除</string>
     <string name="delete_note_q">このメモを削除しますか？</string>
@@ -41,8 +41,6 @@
     <string name="ai">AI</string>
     <string name="ai_search">意味で検索</string>
     <string name="ai_search_hint">search.opensolr.com と同じく、言葉と意味を合わせて検索します。</string>
-    <string name="ai_category">AI によるカテゴリ</string>
-    <string name="ai_category_hint">カテゴリなしで保存したメモに2語のカテゴリを付けます。</string>
     <string name="app">アプリ</string>
     <string name="haptics">振動</string>
     <string name="haptics_hint">ボタンとスイッチで軽く振動します。</string>
