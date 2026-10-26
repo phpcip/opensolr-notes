@@ -45,9 +45,6 @@
     <string name="update_available">La versión %1$s está disponible</string>
     <string name="update_now">Actualizar a %1$s</string>
     <string name="downloading">Descargando %1$d%%</string>
-    <string name="index_choice_title">Notas en otro teléfono</string>
-    <string name="index_choice_text">Tu cuenta ya tiene un índice de notas de otro teléfono. Compártelo para ver las mismas notas en ambos, o empieza uno propio.</string>
-    <string name="index_choice_new">Empezar uno propio</string>
     <string name="index_security">Contraseña y seguridad del índice</string>
     <string name="check_for_updates">Buscar actualizaciones</string>
     <string name="checking">Comprobando…</string>

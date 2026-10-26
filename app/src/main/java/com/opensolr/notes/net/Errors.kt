@@ -19,5 +19,3 @@ class IndexLimitException : IOException("No room for another index on this plan"
 
 class EndpointMissingException : java.io.IOException("Endpoint not available")
 
-/** Notes indexes of other phones exist on the account: the reader says whether to re-use one before anything is created. */
-class IndexChoiceException(val choices: List<String>) : IOException("Choose an index in Opensolr Notes")

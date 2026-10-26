@@ -45,9 +45,6 @@
     <string name="update_available">バージョン %1$s が利用できます</string>
     <string name="update_now">%1$s に更新</string>
     <string name="downloading">ダウンロード中 %1$d%%</string>
-    <string name="index_choice_title">別の端末のメモがあります</string>
-    <string name="index_choice_text">アカウントには別の端末で作ったメモのインデックスがあります。共有して同じメモを見るか、この端末専用に始めるか選んでください。</string>
-    <string name="index_choice_new">この端末専用に始める</string>
     <string name="index_security">インデックスのパスワードとセキュリティ</string>
     <string name="check_for_updates">アップデートを確認</string>
     <string name="checking">確認中…</string>

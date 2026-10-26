@@ -4,7 +4,6 @@ import android.content.Context
 import com.opensolr.notes.data.AppPrefs
 import com.opensolr.notes.data.NotesDb
 import com.opensolr.notes.net.IndexConnection
-import com.opensolr.notes.net.IndexChoiceException
 import com.opensolr.notes.net.IndexMissingException
 import com.opensolr.notes.net.OpensolrApi
 import com.opensolr.notes.net.ServiceException
@@ -27,19 +26,18 @@ class NotesIndex(context: Context) {
     /** notes_<device id>__dense: the index this phone makes for itself. */
     val ownName: String get() = "notes_" + prefs.installId + "__dense"
 
-    /** The index this phone writes to: the one chosen, else its own. */
+    /** The index this phone writes to: the account's notes index once resolved, else its own. */
     val name: String get() = prefs.chosenIndex ?: ownName
 
     suspend fun ensure(): IndexConnection = lock.withLock {
-        val name = name
-        IndexConnection.fromJson(prefs.connectionJson)?.takeIf { it.indexName == name && verified == name }?.let { return@withLock it }
-        val all = api.indexNames()
-        val exists = all.contains(name)
-        if (!exists && prefs.chosenIndex == null) {
-            // Another phone's notes index can be shared instead of starting an empty one; the reader decides.
-            val others = all.filter { NOTES.matches(it) && it != name }
-            if (others.isNotEmpty()) throw IndexChoiceException(others)
+        prefs.chosenIndex?.let { chosen ->
+            IndexConnection.fromJson(prefs.connectionJson)?.takeIf { it.indexName == chosen && verified == chosen }?.let { return@withLock it }
         }
+        val all = api.indexNames()
+        // One notes index per Opensolr account: an index already on the account is taken as it is, whichever
+        // phone made it, so every phone of the account sees the same notes. Only an account without one gets a new index.
+        val name = all.filter { NOTES.matches(it) }.minOrNull() ?: ownName
+        val exists = all.contains(name)
         if (!exists) {
             prefs.connectionJson = ""
             api.createIndex(name, region())
@@ -68,12 +66,6 @@ class NotesIndex(context: Context) {
         if (version < CONFIG_VERSION) version = api.notesConfig(connection.indexName)
         if (version < CONFIG_VERSION) throw ServiceException("The notes index could not be brought to the current configuration")
         configured = connection.indexName
-    }
-
-    /** The reader's answer: an existing index of the account, or null for this phone's own. */
-    fun choose(existing: String?) {
-        prefs.chosenIndex = existing ?: ownName
-        forget()
     }
 
     fun forget() {

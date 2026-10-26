@@ -15,7 +15,6 @@ import com.opensolr.notes.data.Note
 import com.opensolr.notes.data.NotesDb
 import com.opensolr.notes.index.NoteSync
 import com.opensolr.notes.index.NotesIndex
-import com.opensolr.notes.net.IndexChoiceException
 import com.opensolr.notes.net.OpensolrApi
 import com.opensolr.notes.net.SelfUpdate
 import com.opensolr.notes.net.SignInRequiredException
@@ -64,8 +63,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var update by mutableStateOf<UpdateCheck.Update?>(null); private set
     var updateProgress by mutableStateOf<Int?>(null); private set
     var updateError by mutableStateOf<String?>(null); private set
-    /** Notes indexes of other phones found on the account; the reader picks one or starts fresh. */
-    var indexChoices by mutableStateOf<List<String>?>(null); private set
     /** AI Hints over the search results: null until asked, then the answer as it streams in. */
     var aiText by mutableStateOf<String?>(null); private set
     var aiRunning by mutableStateOf(false); private set
@@ -163,8 +160,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 hitsEnd = page.size < NotesSearch.PAGE
             } catch (e: SignInRequiredException) {
                 onSessionEnded()
-            } catch (e: IndexChoiceException) {
-                indexChoices = e.choices
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -307,8 +302,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 reload()
             } catch (e: SignInRequiredException) {
                 onSessionEnded()
-            } catch (e: IndexChoiceException) {
-                indexChoices = e.choices
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -320,12 +313,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun clearProblem() { problem = null }
-
-    fun chooseIndex(existing: String?) {
-        indexChoices = null
-        index.choose(existing)
-        syncNow()
-    }
 
     // ---- account ----
 
@@ -365,7 +352,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         filters = Filters()
         query = ""
         hits = null
-        indexChoices = null
         problem = null
         signedIn = false
         screen = Screen.Setup

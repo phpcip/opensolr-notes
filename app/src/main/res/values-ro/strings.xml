@@ -45,9 +45,6 @@
     <string name="update_available">Versiunea %1$s e disponibilă</string>
     <string name="update_now">Actualizează la %1$s</string>
     <string name="downloading">Se descarcă %1$d%%</string>
-    <string name="index_choice_title">Note găsite pe alt telefon</string>
-    <string name="index_choice_text">Contul tău are deja un index de note de pe alt telefon. Folosește-l, ca ambele telefoane să vadă aceleași note, sau pornește unul propriu.</string>
-    <string name="index_choice_new">Pornește unul propriu</string>
     <string name="index_security">Parola și securitatea indexului</string>
     <string name="check_for_updates">Caută actualizări</string>
     <string name="checking">Se verifică…</string>

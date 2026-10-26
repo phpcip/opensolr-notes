@@ -45,9 +45,6 @@
     <string name="update_available">版本 %1$s 可用</string>
     <string name="update_now">更新到 %1$s</string>
     <string name="downloading">正在下载 %1$d%%</string>
-    <string name="index_choice_title">在另一部手机上发现笔记</string>
-    <string name="index_choice_text">你的账户已有另一部手机创建的笔记索引。共享它以在两部手机上看到相同的笔记，或为这部手机新建一个。</string>
-    <string name="index_choice_new">为这部手机新建</string>
     <string name="index_security">索引密码与安全</string>
     <string name="check_for_updates">检查更新</string>
     <string name="checking">正在检查…</string>
