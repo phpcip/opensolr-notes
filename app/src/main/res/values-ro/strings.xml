@@ -4,7 +4,7 @@
     <string name="cancel">Anulează</string>
     <string name="cd_clear_selection">Golește selecția</string>
     <string name="setup_lead">Note care stau în propriul tău Opensolr Index: căutabile după cuvinte și după înțeles, pe orice telefon logat în contul tău.</string>
-    <string name="setup_body">Loghează-te cu contul Opensolr. Aplicația creează un index pentru notele tale și pune pagina lui de căutare în spatele parolei indexului.</string>
+    <string name="setup_body">Loghează-te cu contul Opensolr. Aplicația creează un index pentru notele tale. Pagina lui de căutare se deschide cu adresa contului și codul de autentificare în doi pași.</string>
     <string name="sign_in">Loghează-te cu Opensolr</string>
     <string name="search_hint">Caută în note</string>
     <string name="no_results">Nimic găsit.</string>
@@ -30,7 +30,7 @@
     <string name="index">Index</string>
     <string name="notes_count">Note</string>
     <string name="open_search_page">Deschide pagina de căutare</string>
-    <string name="search_page_hint">search.opensolr.com/&lt;index&gt;, protejată cu userul și parola indexului din contul tău Opensolr.</string>
+    <string name="search_page_hint">search.opensolr.com/&lt;index&gt;, se deschide cu adresa contului și codul de autentificare în doi pași. Parola indexului se poate adăuga ca pas în plus din Parola și securitatea indexului.</string>
     <string name="sync_now">Sincronizează acum</string>
     <string name="sign_out">Deloghează-te</string>
     <string name="sign_out_q">Te deloghezi?</string>

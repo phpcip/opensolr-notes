@@ -4,7 +4,7 @@
     <string name="cancel">Cancel</string>
     <string name="cd_clear_selection">Clear selection</string>
     <string name="setup_lead">Notes that live in your own Opensolr Index: searchable by words and by meaning, on every phone signed in to your account.</string>
-    <string name="setup_body">Sign in with your Opensolr account. The app creates one index for your notes and puts its search page behind the index password.</string>
+    <string name="setup_body">Sign in with your Opensolr account. The app creates one index for your notes. Its search page opens with your account address and two-factor code.</string>
     <string name="sign_in">Sign in with Opensolr</string>
     <string name="search_hint">Search your notes</string>
     <string name="no_results">Nothing found.</string>
@@ -37,7 +37,7 @@
     <string name="index">Index</string>
     <string name="notes_count">Notes</string>
     <string name="open_search_page">Open the search page</string>
-    <string name="search_page_hint">search.opensolr.com/&lt;index&gt;, protected with the index user and password from your Opensolr account.</string>
+    <string name="search_page_hint">search.opensolr.com/&lt;index&gt;, opened with your account address and two-factor code. The index password can be added as an extra step under Index password and security.</string>
     <string name="sync_now">Sync now</string>
     <string name="sign_out">Sign out</string>
     <string name="sign_out_q">Sign out?</string>

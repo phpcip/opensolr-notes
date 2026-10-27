@@ -106,15 +106,6 @@ class OpensolrApi(private val prefs: AppPrefs) {
         IndexConnection(name, base, info.optString("auth_username"), info.optString("auth_password"), info.optJSONObject("search_tuning") ?: JSONObject())
     }
 
-    /** Puts the hosted search page (search.opensolr.com/<index>) behind the index's own HTTP user and password. */
-    suspend fun protectSearchPage(name: String, enable: Boolean) = withContext(Dispatchers.IO) {
-        val json = obj(post(MANAGEMENT + "search_password_toggle", form {
-            add("core_name", name)
-            add("enable", if (enable) "1" else "0")
-        }))
-        if (!json.optBoolean("status")) throw ServiceException(message(json.toString()))
-    }
-
     /** Pins and ordering on the hosted notes page need the index's elevation on. */
     suspend fun enableElevation(name: String) = withContext(Dispatchers.IO) {
         val json = obj(post(MANAGEMENT + "elevation_toggle", form {

@@ -4,7 +4,7 @@
     <string name="cancel">Abbrechen</string>
     <string name="cd_clear_selection">Auswahl aufheben</string>
     <string name="setup_lead">Notizen in deinem eigenen Opensolr Index: nach Wörtern und Bedeutung durchsuchbar, auf jedem Telefon mit deinem Konto.</string>
-    <string name="setup_body">Melde dich mit deinem Opensolr-Konto an. Die App legt einen Index für deine Notizen an und schützt dessen Suchseite mit dem Index-Passwort.</string>
+    <string name="setup_body">Melde dich mit deinem Opensolr-Konto an. Die App legt einen Index für deine Notizen an. Seine Suchseite öffnet sich mit der Adresse deines Kontos und dem Zwei-Faktor-Code.</string>
     <string name="sign_in">Mit Opensolr anmelden</string>
     <string name="search_hint">Notizen durchsuchen</string>
     <string name="no_results">Nichts gefunden.</string>
@@ -30,7 +30,7 @@
     <string name="index">Index</string>
     <string name="notes_count">Notizen</string>
     <string name="open_search_page">Suchseite öffnen</string>
-    <string name="search_page_hint">search.opensolr.com/&lt;index&gt;, geschützt mit Benutzer und Passwort des Index aus deinem Opensolr-Konto.</string>
+    <string name="search_page_hint">search.opensolr.com/&lt;index&gt;, geöffnet mit der Adresse deines Kontos und dem Zwei-Faktor-Code. Das Index-Passwort lässt sich unter Index-Passwort und Sicherheit als zusätzlicher Schritt hinzufügen.</string>
     <string name="sync_now">Jetzt synchronisieren</string>
     <string name="sign_out">Abmelden</string>
     <string name="sign_out_q">Abmelden?</string>

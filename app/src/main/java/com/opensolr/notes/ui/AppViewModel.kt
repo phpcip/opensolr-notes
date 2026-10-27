@@ -357,7 +357,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         screen = Screen.Setup
     }
 
-    /** search.opensolr.com/<index>: the hosted page, behind the index's own user and password. */
+    /** search.opensolr.com/<index>: the hosted page, opened with the account's address and 2FA code. */
     fun searchPageUrl(): String? = prefs.indexName.takeIf { it.isNotBlank() }?.let { "https://search.opensolr.com/$it" }
 
     // ---- updates ----

@@ -4,7 +4,7 @@
     <string name="cancel">取消</string>
     <string name="cd_clear_selection">清除选择</string>
     <string name="setup_lead">保存在你自己的 Opensolr Index 中的笔记：可按词语和语义搜索，登录同一账户的每部手机都能使用。</string>
-    <string name="setup_body">使用 Opensolr 账户登录。应用会为你的笔记创建一个索引，并用索引密码保护其搜索页面。</string>
+    <string name="setup_body">使用 Opensolr 账户登录。应用会为你的笔记创建一个索引。其搜索页面用账户地址和两步验证码打开。</string>
     <string name="sign_in">使用 Opensolr 登录</string>
     <string name="search_hint">搜索笔记</string>
     <string name="no_results">没有结果。</string>
@@ -30,7 +30,7 @@
     <string name="index">索引</string>
     <string name="notes_count">笔记</string>
     <string name="open_search_page">打开搜索页面</string>
-    <string name="search_page_hint">search.opensolr.com/&lt;index&gt;，由你 Opensolr 账户中该索引的用户名和密码保护。</string>
+    <string name="search_page_hint">search.opensolr.com/&lt;index&gt;，用账户地址和两步验证码打开。可在“索引密码与安全”中把索引密码添加为额外的一步。</string>
     <string name="sync_now">立即同步</string>
     <string name="sign_out">退出登录</string>
     <string name="sign_out_q">退出登录？</string>

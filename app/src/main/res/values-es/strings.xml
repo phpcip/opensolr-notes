@@ -4,7 +4,7 @@
     <string name="cancel">Cancelar</string>
     <string name="cd_clear_selection">Quitar selección</string>
     <string name="setup_lead">Notas en tu propio Opensolr Index: buscables por palabras y por significado, en cada teléfono con tu cuenta.</string>
-    <string name="setup_body">Inicia sesión con tu cuenta de Opensolr. La app crea un índice para tus notas y protege su página de búsqueda con la contraseña del índice.</string>
+    <string name="setup_body">Inicia sesión con tu cuenta de Opensolr. La app crea un índice para tus notas. Su página de búsqueda se abre con la dirección de tu cuenta y el código de dos factores.</string>
     <string name="sign_in">Iniciar sesión con Opensolr</string>
     <string name="search_hint">Buscar en las notas</string>
     <string name="no_results">Nada encontrado.</string>
@@ -30,7 +30,7 @@
     <string name="index">Índice</string>
     <string name="notes_count">Notas</string>
     <string name="open_search_page">Abrir la página de búsqueda</string>
-    <string name="search_page_hint">search.opensolr.com/&lt;index&gt;, protegida con el usuario y la contraseña del índice de tu cuenta de Opensolr.</string>
+    <string name="search_page_hint">search.opensolr.com/&lt;index&gt;, se abre con la dirección de tu cuenta y el código de dos factores. La contraseña del índice se puede añadir como paso extra en Contraseña y seguridad del índice.</string>
     <string name="sync_now">Sincronizar ahora</string>
     <string name="sign_out">Cerrar sesión</string>
     <string name="sign_out_q">¿Cerrar sesión?</string>

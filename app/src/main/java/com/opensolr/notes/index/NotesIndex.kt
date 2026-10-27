@@ -14,8 +14,7 @@ import kotlinx.coroutines.sync.withLock
 /**
  * The notes index of this phone, as Opensolr Photos and Mail have theirs: notes_<device id>__dense, or one
  * made by another phone of the account that the reader chose to share. Made with the platform's web crawler
- * configuration, which is what the hosted search page at search.opensolr.com/<index> expects; that page is
- * put behind the index's own password.
+ * configuration, which is what the hosted search page at search.opensolr.com/<index> expects.
  */
 class NotesIndex(context: Context) {
 
@@ -43,10 +42,6 @@ class NotesIndex(context: Context) {
             api.createIndex(name, region())
         }
         val connection = connectionWithRetry(name)
-        if (prefs.protectedIndex != name) {
-            api.protectSearchPage(name, true)
-            prefs.protectedIndex = name
-        }
         // A new or different index holds none of the notes synced before: they go up again instead of being dropped as gone
         if (!exists || prefs.indexName != name) db.markAllUnsynced()
         prefs.indexName = name

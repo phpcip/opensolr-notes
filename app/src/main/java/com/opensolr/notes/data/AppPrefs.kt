@@ -64,11 +64,6 @@ class AppPrefs(context: Context) {
         get() = sp.getBoolean(K_VECTOR, true)
         set(v) = sp.edit().putBoolean(K_VECTOR, v).apply()
 
-    /** The index whose hosted search page was already put behind its password. */
-    var protectedIndex: String
-        get() = sp.getString(K_PROTECTED, "") ?: ""
-        set(v) = sp.edit().putString(K_PROTECTED, v).apply()
-
     /** The index whose elevation (pins and ordering on the hosted page) has been switched on. */
     var elevatedIndex: String
         get() = sp.getString("elevated_index", "") ?: ""
