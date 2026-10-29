@@ -68,4 +68,20 @@
     <string name="delete_selected">Delete selected</string>
     <plurals name="delete_notes_q"><item quantity="one">Delete %1$d note?</item><item quantity="other">Delete %1$d notes?</item></plurals>
     <string name="delete_notes_text">They are removed from this phone, from your other devices and from your index.</string>
+    <string name="close">Close</string>
+    <string name="find_hint">Find in note</string>
+    <string name="find_help_title">Find patterns</string>
+    <string name="find_help_lead">The box takes plain words or a regular expression. It searches the note as it reads, ignoring case, and marks every match.</string>
+    <string name="find_h_plain">Plain text: found as typed</string>
+    <string name="find_h_dot">Any one character</string>
+    <string name="find_h_classes">A digit, a word character (letter, digit, _), a space or tab</string>
+    <string name="find_h_boundary">The edge of a word: \\bnote\\b finds note, not notes</string>
+    <string name="find_h_set">One of the characters, none of them, or a range</string>
+    <string name="find_h_or">Either one</string>
+    <string name="find_h_repeat">Repeat: any number, one or more, optional, 2 to 5 times</string>
+    <string name="find_h_lines">The start and the end of a line</string>
+    <string name="find_h_group">A group, so | and repeats apply to all of it</string>
+    <string name="find_h_escape">A backslash finds the character itself</string>
+    <string name="find_h_case">At the start: match upper and lower case exactly</string>
+    <string name="find_help_examples">Examples</string>
 </resources>

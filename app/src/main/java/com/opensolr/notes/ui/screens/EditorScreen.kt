@@ -57,6 +57,9 @@ import com.opensolr.notes.R
 import com.opensolr.notes.ui.AppViewModel
 import com.opensolr.notes.ui.ConfirmDialog
 import com.opensolr.notes.ui.Field
+import com.opensolr.notes.ui.Find
+import com.opensolr.notes.ui.FindField
+import com.opensolr.notes.ui.FindHelpDialog
 import com.opensolr.notes.ui.DialogButton
 import com.opensolr.notes.ui.Hairline
 import com.opensolr.notes.ui.IconBtn
@@ -210,8 +213,42 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
     }
     val context = androidx.compose.ui.platform.LocalContext.current
 
+    // Find in the note: the pattern runs over the text as it reads; the current match is the one scrolled to
+    var findQuery by remember { mutableStateOf("") }
+    var findAt by remember { mutableStateOf(0) }
+    var findFocused by remember { mutableStateOf(false) }
+    var findHelp by remember { mutableStateOf(false) }
+    var findJump by remember { mutableStateOf(0) }
+    val shown = remember(body.text) { Marks.render(body.text).first.text }
+    val found = remember(shown, findQuery) { Find.run(shown, findQuery) }
+    fun findGo(i: Int) {
+        val n = found.ranges.size
+        if (n == 0) return
+        findAt = ((i % n) + n) % n
+        findJump++
+    }
+    // a new pattern starts at the first match from the cursor on; an edit keeps the current match in range
+    LaunchedEffect(findQuery) {
+        val (_, map) = Marks.render(body.text)
+        val cursor = map[body.selection.start.coerceIn(0, map.size - 1)]
+        val i = found.ranges.indexOfFirst { it.first >= cursor }
+        findAt = if (i >= 0) i else 0
+        findJump++
+    }
+    LaunchedEffect(found) { if (findAt >= found.ranges.size) findAt = 0 }
+
     Column(Modifier.fillMaxSize().imePadding()) {
-        TopBar(if (existing == null) stringResource(R.string.new_note) else stringResource(R.string.edit_note), onBack = { saveAndClose() }) {
+        TopBar(
+            if (existing == null) stringResource(R.string.new_note) else stringResource(R.string.edit_note), onBack = { saveAndClose() },
+            middle = {
+                FindField(
+                    query = findQuery, onQuery = { findQuery = it },
+                    count = found.ranges.size, current = findAt, error = found.error,
+                    onPrev = { findGo(findAt - 1) }, onNext = { findGo(findAt + 1) }, onHelp = { findHelp = true },
+                    modifier = Modifier.weight(1f).padding(horizontal = 4.dp).onFocusChanged { findFocused = it.hasFocus },
+                )
+            },
+        ) {
             if (existing != null) IconBtn(R.drawable.ic_delete, { confirmDelete = true })
             IconBtn(R.drawable.ic_check, { saveAndClose() }, strong = true, enabled = body.text.isNotBlank())
         }
@@ -238,6 +275,8 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
             val multiTap = remember { MultiTap() }
             val scroll = rememberScrollState()
             var viewportH by remember { mutableStateOf(0) }
+            var viewportW by remember { mutableStateOf(0) }
+            val hScroll = rememberScrollState()
             val imeBottom = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)
             // The line with the cursor stays in view: three lines under it when the keyboard comes up, and when the cursor
             // moves the text scrolls only if that line left the view, so a tap puts the cursor where the finger landed
@@ -246,6 +285,8 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
                 val l = layout ?: return@LaunchedEffect
                 val keyboardMoved = imeBottom != lastIme
                 lastIme = imeBottom
+                // while the find box is being typed in, the view follows the match, not the cursor
+                if (findFocused) return@LaunchedEffect
                 if (viewportH <= 0 || l.lineCount == 0) return@LaunchedEffect
                 val (_, map) = Marks.render(body.text)
                 val at = map[body.selection.end.coerceIn(0, map.size - 1)].coerceIn(0, l.layoutInput.text.length)
@@ -258,17 +299,34 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
                     top < scroll.value -> scroll.animateScrollTo(top.toInt().coerceAtLeast(0))
                 }
             }
-            Box(Modifier.fillMaxWidth().weight(1f).padding(horizontal = 12.dp, vertical = 11.dp).onSizeChanged { viewportH = it.height }) {
+            // the current match brought into view, a third of the way down (and across, when lines run on)
+            LaunchedEffect(findJump, viewportH, layout) {
+                val l = layout ?: return@LaunchedEffect
+                val r = found.ranges.getOrNull(findAt) ?: return@LaunchedEffect
+                if (viewportH <= 0 || r.first > l.layoutInput.text.length) return@LaunchedEffect
+                val line = l.getLineForOffset(r.first)
+                val top = l.getLineTop(line); val bottom = l.getLineBottom(line)
+                if (top < scroll.value || bottom > scroll.value + viewportH) scroll.animateScrollTo((top - viewportH / 3f).toInt().coerceIn(0, scroll.maxValue))
+                if (!wrap && viewportW > 0) {
+                    val x = l.getHorizontalPosition(r.first, true)
+                    if (x < hScroll.value || x > hScroll.value + viewportW) hScroll.animateScrollTo((x - viewportW / 3f).toInt().coerceIn(0, hScroll.maxValue))
+                }
+            }
+            val all = p.accent.copy(alpha = 0.22f)
+            val transform = remember(found, findAt, all, p.accent, p.onAccent) {
+                if (found.ranges.isEmpty()) Marks.transformation else Find.transformation(found.ranges, findAt, all, p.accent, p.onAccent)
+            }
+            Box(Modifier.fillMaxWidth().weight(1f).padding(horizontal = 12.dp, vertical = 11.dp).onSizeChanged { viewportH = it.height; viewportW = it.width }) {
                 if (body.text.isEmpty()) Text(stringResource(R.string.text_hint), style = mono.copy(color = p.muted))
                 BasicTextField(
                     value = body, onValueChange = { edit(it) },
                     textStyle = mono, cursorBrush = SolidColor(p.accent),
-                    visualTransformation = Marks.transformation,
+                    visualTransformation = transform,
                     onTextLayout = { layout = it },
                     keyboardOptions = textKeyboard(false),
                     modifier = Modifier.fillMaxSize().verticalScroll(scroll)
                         // word wrap off: lines run on and the field scrolls sideways
-                        .then(if (wrap) Modifier else Modifier.horizontalScroll(rememberScrollState()))
+                        .then(if (wrap) Modifier else Modifier.horizontalScroll(hScroll))
                         .focusRequester(focus)
                         // double tap selects the word, triple tap the paragraph; seen after the field placed its cursor
                         .pointerInput(Unit) {
@@ -340,6 +398,7 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
             containerColor = pal.paper, titleContentColor = pal.ink, textContentColor = pal.muted,
         )
     }
+    if (findHelp) FindHelpDialog { findHelp = false }
     if (confirmDelete && existing != null) {
         ConfirmDialog(
             title = stringResource(R.string.delete_note_q), text = stringResource(R.string.delete_note_text), action = stringResource(R.string.delete),

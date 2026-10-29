@@ -107,7 +107,7 @@ fun Press.tint(rest: Color, solid: Boolean = false): Color {
 
 /** The header row of every screen: fill, hairline under it, actions on the right. */
 @Composable
-fun TopBar(title: String, onBack: (() -> Unit)? = null, actions: @Composable RowScope.() -> Unit = {}) {
+fun TopBar(title: String, onBack: (() -> Unit)? = null, middle: (@Composable RowScope.() -> Unit)? = null, actions: @Composable RowScope.() -> Unit = {}) {
     val p = LocalPalette.current
     Row(
         modifier = Modifier.fillMaxWidth().background(p.band).padding(horizontal = 6.dp).height(52.dp),
@@ -115,7 +115,9 @@ fun TopBar(title: String, onBack: (() -> Unit)? = null, actions: @Composable Row
     ) {
         if (onBack != null) IconBtn(com.opensolr.notes.R.drawable.ic_back, onBack)
         else Spacer(Modifier.width(10.dp))
-        Text(
+        // a screen can put its own control (the find box of a note) where the title goes
+        if (middle != null) middle()
+        else Text(
             title, style = MaterialTheme.typography.titleMedium, color = p.ink, maxLines = 1,
             overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
         )

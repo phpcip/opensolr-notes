@@ -88,7 +88,7 @@ class AppPrefs(context: Context) {
         set(v) = sp.edit().putBoolean("haptics", v).apply()
 
     var aiSearch: Boolean
-        get() = sp.getBoolean("ai_search", true)
+        get() = sp.getBoolean("ai_search", false)
         set(v) = sp.edit().putBoolean("ai_search", v).apply()
 
     var lastUpdateCheck: Long
