@@ -53,6 +53,20 @@ object Haptics {
         vibrator.vibrate(effect)
     }
 
+    /** A note caught by its grip to be moved: a double knock, unlike the single tick of picking a note. */
+    fun grab(view: View) {
+        if (!enabled) return
+        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            view.context.getSystemService(android.os.VibratorManager::class.java)?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION") view.context.getSystemService(android.os.Vibrator::class.java)
+        }
+        if (vibrator == null || !vibrator.hasVibrator()) { view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS); return }
+        val effect = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) android.os.VibrationEffect.createPredefined(android.os.VibrationEffect.EFFECT_DOUBLE_CLICK)
+        else android.os.VibrationEffect.createWaveform(longArrayOf(0, 20, 60, 20), -1)
+        vibrator.vibrate(effect)
+    }
+
     /** The light tap every button, row, tab and chip gives back. */
     fun tap(view: View) {
         if (!enabled) return

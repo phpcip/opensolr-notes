@@ -16,6 +16,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitTouchSlopOrCancellation
+import androidx.compose.foundation.gestures.drag
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.res.painterResource
@@ -222,22 +227,36 @@ fun NotesScreen(vm: AppViewModel) {
                             Modifier
                                 .then(if (isDragged) Modifier else Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null))
                                 .zIndex(if (isDragged) 1f else 0f)
-                                .graphicsLayer { translationY = if (isDragged) dragOffset else 0f; shadowElevation = if (isDragged) 12f else 0f },
+                                .graphicsLayer { translationY = if (isDragged) dragOffset - 2.dp.toPx() else 0f; shadowElevation = if (isDragged) 12f else 0f },
                         ) {
                             SwipeRow(
                                 note = note,
                                 onDelete = { confirmDelete = note.id },
                             ) {
                                 NoteRow(note, null, onOpen = { if (selected.isNotEmpty()) pick(note.id) else vm.open(note.id) }, picked = note.id in selected) {
-                                    // The grip: three lines at the right of the row; a drag on it moves the note
+                                    // The grip: three lines at the right of the row. Held still or dragged, the note is caught
+                                    // (a double knock, the row lifted) and then follows the finger.
                                     Box(
                                         Modifier.size(44.dp).pointerInput(note.id) {
-                                            detectDragGestures(
-                                                onDragStart = { dragging = note.id; dragOffset = 0f; Haptics.tick(view, true) },
-                                                onDragEnd = { dragging = null; dragOffset = 0f; vm.moveDone(note.id) },
-                                                onDragCancel = { dragging = null; dragOffset = 0f; vm.moveDone(note.id) },
-                                                onDrag = { change, amount -> change.consume(); dragBy(note.id, amount.y) },
-                                            )
+                                            awaitEachGesture {
+                                                val down = awaitFirstDown(requireUnconsumed = false)
+                                                var moved: androidx.compose.ui.input.pointer.PointerInputChange? = null
+                                                var released = false
+                                                val held = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                                                    moved = awaitTouchSlopOrCancellation(down.id) { c, _ -> c.consume() }
+                                                    if (moved == null) released = true
+                                                } == null
+                                                if (released || (!held && moved == null)) return@awaitEachGesture
+                                                dragging = note.id; dragOffset = 0f; Haptics.grab(view)
+                                                moved?.let { dragBy(note.id, it.position.y - down.position.y) }
+                                                var went = moved != null
+                                                drag(down.id) { c -> val dy = c.positionChange().y; if (dy != 0f) { went = true; dragBy(note.id, dy) }; c.consume() }
+                                                // the lift of the finger belongs to the move: the row under it does not take it as a tap
+                                                currentEvent.changes.forEach { it.consume() }
+                                                dragging = null; dragOffset = 0f
+                                                // caught and let go without moving: the order did not change, nothing to save
+                                                if (went) vm.moveDone(note.id)
+                                            }
                                         },
                                         contentAlignment = Alignment.Center,
                                     ) {
