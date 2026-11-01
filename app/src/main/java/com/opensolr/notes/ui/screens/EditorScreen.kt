@@ -80,7 +80,7 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
     val view = androidx.compose.ui.platform.LocalView.current
     val existing = remember(id) { id?.let { vm.db.get(it) } }
     var title by remember { mutableStateOf(existing?.title.orEmpty()) }
-    var body by remember { mutableStateOf(TextFieldValue(existing?.text.orEmpty(), TextRange(0))) }
+    var body by remember { mutableStateOf(Marks.balance(TextFieldValue(existing?.text.orEmpty(), TextRange(0)))) }
     // the category is no longer edited; a note that has one keeps it
     val category = existing?.category.orEmpty()
     var confirmDelete by remember { mutableStateOf(false) }
@@ -146,7 +146,7 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
         val openAt = t.lastIndexOf(open, s - 1).takeIf { it >= 0 && t.indexOf(close, it).let { c -> c < 0 || c >= s } }
         val closeAt = if (openAt != null) t.indexOf(close, maxOf(e, openAt + open.length)) else -1
         remember(v, coalesce = false)
-        body = if (openAt != null && closeAt >= 0) {
+        body = Marks.balance(if (openAt != null && closeAt >= 0) {
             val before = t.substring(openAt + open.length, s)
             val sel = t.substring(s, e)
             val after = t.substring(e, closeAt)
@@ -157,7 +157,7 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
         } else {
             val inner = t.substring(s, e)
             TextFieldValue(t.substring(0, s) + open + inner + close + t.substring(e), TextRange(s + open.length, s + open.length + inner.length))
-        }
+        })
     }
 
     // The link around the selection, if there is one: where its tags are in the text and its address
@@ -210,7 +210,7 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
         }
         val ins = tag + inner + "</a>"
         remember(body, coalesce = false)
-        body = TextFieldValue(t.substring(0, s0) + ins + t.substring(e0), TextRange(s0 + ins.length))
+        body = Marks.balance(TextFieldValue(t.substring(0, s0) + ins + t.substring(e0), TextRange(s0 + ins.length)))
     }
     fun removeLink() {
         val a = linkDialog ?: return
@@ -218,7 +218,7 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
         val t = body.text
         val inner = t.substring(a.openEnd, a.closeStart)
         remember(body, coalesce = false)
-        body = TextFieldValue(t.substring(0, a.openStart) + inner + t.substring(a.closeEnd), TextRange(a.openStart, a.openStart + inner.length))
+        body = Marks.balance(TextFieldValue(t.substring(0, a.openStart) + inner + t.substring(a.closeEnd), TextRange(a.openStart, a.openStart + inner.length)))
     }
     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -265,6 +265,8 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
         // The B / I / U row stays put under the top bar while the note scrolls.
         FormatRow(
             onTag = { mark(it) }, onChecklist = { remember(body, coalesce = false); body = com.opensolr.notes.ui.Checklist.toggleLines(body) }, onLink = {
+                // tags crossing the link (<b><a>x</b></a>) are put in order first, so changing its text keeps every other mark closed
+                body = Marks.balance(body)
                 linkDialog = linkAt()
                 linkUrl = linkDialog?.url.orEmpty()
                 linkText = linkDialog?.let { com.opensolr.notes.data.NoteText.plain(body.text.substring(it.openEnd, it.closeStart)) }

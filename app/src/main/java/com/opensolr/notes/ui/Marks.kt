@@ -111,6 +111,57 @@ object Marks {
     fun plainStyled(text: String): AnnotatedString = render(text).first
 
     /**
+     * The note's tags made well nested, the way it already reads on screen: a close that crosses another tag
+     * (<b><a>x</b></a>) closes the tags inside it and opens them again after it, a close with no open is dropped,
+     * and a tag opened again with nothing in it is left out. The selection follows the text it was on.
+     */
+    fun balance(v: androidx.compose.ui.text.input.TextFieldValue): androidx.compose.ui.text.input.TextFieldValue {
+        val text = v.text
+        val out = StringBuilder()
+        val map = IntArray(text.length + 1)
+        class Open(val name: String, val tag: String, var written: Boolean)
+        val stack = ArrayList<Open>()
+        fun flush() { stack.forEach { if (!it.written) { out.append(it.tag); it.written = true } } }
+        var i = 0
+        var m = token.find(text)
+        while (true) {
+            val next = m?.range?.first ?: text.length
+            while (i < next) { flush(); map[i] = out.length; out.append(text[i]); i++ }
+            if (m == null) break
+            val start = m.range.first
+            val v0 = m.value
+            if (v0.startsWith("&")) {
+                flush(); map[start] = out.length; out.append(v0)
+            } else {
+                val closing = m.groupValues[1] == "/"
+                val name = m.groupValues[2].lowercase()
+                if (!closing && name in VOID) {
+                    flush(); map[start] = out.length; out.append(v0)
+                } else if (!closing) {
+                    flush(); map[start] = out.length; out.append(v0); stack.add(Open(name, v0, true))
+                } else {
+                    map[start] = out.length
+                    val at = stack.indexOfLast { it.name == name }
+                    if (at >= 0) {
+                        for (k in stack.size - 1 downTo at + 1) if (stack[k].written) { out.append("</").append(stack[k].name).append('>'); stack[k].written = false }
+                        if (stack[at].written) out.append(v0)
+                        stack.removeAt(at)
+                    }
+                }
+            }
+            for (k in start + 1..m.range.last) map[k] = out.length
+            i = m.range.last + 1
+            m = m.next()
+        }
+        map[text.length] = out.length
+        val fixed = out.toString()
+        if (fixed == text) return v
+        return androidx.compose.ui.text.input.TextFieldValue(fixed, androidx.compose.ui.text.TextRange(map[v.selection.start.coerceIn(0, text.length)], map[v.selection.end.coerceIn(0, text.length)]))
+    }
+
+    private val VOID = setOf("br", "hr", "img", "input")
+
+    /**
      * One key of Backspace or Delete next to a tag takes out a character of the tag (its ">"), which would leave the
      * tag as text on screen. It is made what the writer sees: the character shown before (Backspace) or after (Delete)
      * the cursor goes, and a checklist box goes whole, with the space after it. Null when the edit is not that case.
