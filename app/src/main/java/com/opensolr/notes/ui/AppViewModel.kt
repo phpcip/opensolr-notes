@@ -42,6 +42,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val db = NotesDb(app)
     private val api = OpensolrApi(prefs)
     private val index = NotesIndex(app)
+
+    // ---- note links: the note in a browser for anyone who has the link (read only or with editing), managed here ----
+    suspend fun noteLinks(noteId: String) = api.noteLinks(index.name, noteId)
+    suspend fun noteLinkAdd(noteId: String, write: Boolean, days: Int) = api.noteLinkAdd(index.name, noteId, write, days).also { refreshLinked() }
+    suspend fun noteLinkRemove(noteId: String, token: String) = api.noteLinkRemove(index.name, noteId, token).also { refreshLinked() }
+
+    /** The notes that have a link that still opens: a link icon on them in the list. */
+    var linkedNotes by mutableStateOf<Set<String>>(emptySet()); private set
+
+    fun refreshLinked() {
+        if (!prefs.signedIn) return
+        viewModelScope.launch(Guard) {
+            runCatching { withContext(Dispatchers.IO) { api.noteLinks(index.name, "") } }
+                .onSuccess { all -> linkedNotes = all.filter { !it.expired }.map { it.noteId }.toSet() }
+        }
+    }
     private val sync = NoteSync(app)
     private val searcher = NotesSearch(prefs, api)
 
@@ -300,6 +316,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val p = withContext(Dispatchers.IO) { sync.run() }
                 problem = p
                 reload()
+                refreshLinked()
             } catch (e: SignInRequiredException) {
                 onSessionEnded()
             } catch (e: kotlinx.coroutines.CancellationException) {

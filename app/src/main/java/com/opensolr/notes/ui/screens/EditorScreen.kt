@@ -77,12 +77,15 @@ import com.opensolr.notes.ui.theme.LocalPalette
 @Composable
 fun EditorScreen(vm: AppViewModel, id: String?) {
     val p = LocalPalette.current
+    val view = androidx.compose.ui.platform.LocalView.current
     val existing = remember(id) { id?.let { vm.db.get(it) } }
     var title by remember { mutableStateOf(existing?.title.orEmpty()) }
     var body by remember { mutableStateOf(TextFieldValue(existing?.text.orEmpty(), TextRange(0))) }
     // the category is no longer edited; a note that has one keeps it
     val category = existing?.category.orEmpty()
     var confirmDelete by remember { mutableStateOf(false) }
+    var sharing by remember { mutableStateOf(false) }
+    var linking by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
     // Undo and redo over the text: a run of typing is one step, a format change or a paste its own
     val undo = remember { ArrayDeque<TextFieldValue>() }
@@ -101,6 +104,12 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
         undoCount = undo.size; redoCount = 0
     }
     fun edit(v: TextFieldValue) {
+        // Enter on a checklist line: the next line gets a box (or an empty item loses its box)
+        // Backspace / Delete against a tag: the character the writer sees goes, never a piece of the tag
+        val fixed = Marks.fixDelete(body, v)
+        if (fixed != null) { if (fixed.text != body.text) remember(body, coalesce = false); body = fixed; return }
+        val list = com.opensolr.notes.ui.Checklist.onEnter(body, v)
+        if (list != null) { remember(body, coalesce = false); body = list; return }
         if (v.text != body.text) remember(body, coalesce = kotlin.math.abs(v.text.length - body.text.length) == 1)
         body = v
     }
@@ -249,12 +258,13 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
                 )
             },
         ) {
+            IconBtn(R.drawable.ic_share, { sharing = true }, enabled = body.text.isNotBlank(), contentDescription = stringResource(R.string.share))
             if (existing != null) IconBtn(R.drawable.ic_delete, { confirmDelete = true })
             IconBtn(R.drawable.ic_check, { saveAndClose() }, strong = true, enabled = body.text.isNotBlank())
         }
         // The B / I / U row stays put under the top bar while the note scrolls.
         FormatRow(
-            onTag = { mark(it) }, onLink = {
+            onTag = { mark(it) }, onChecklist = { remember(body, coalesce = false); body = com.opensolr.notes.ui.Checklist.toggleLines(body) }, onLink = {
                 linkDialog = linkAt()
                 linkUrl = linkDialog?.url.orEmpty()
                 linkText = linkDialog?.let { com.opensolr.notes.data.NoteText.plain(body.text.substring(it.openEnd, it.closeStart)) }
@@ -318,6 +328,9 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
             }
             Box(Modifier.fillMaxWidth().weight(1f).padding(horizontal = 12.dp, vertical = 11.dp).onSizeChanged { viewportH = it.height; viewportW = it.width }) {
                 if (body.text.isEmpty()) Text(stringResource(R.string.text_hint), style = mono.copy(color = p.muted))
+                val system = androidx.compose.ui.platform.LocalClipboardManager.current
+                val clipboard = remember(system) { PlainClipboard(system) }
+                androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalClipboardManager provides clipboard) {
                 BasicTextField(
                     value = body, onValueChange = { edit(it) },
                     textStyle = mono, cursorBrush = SolidColor(p.accent),
@@ -340,7 +353,24 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
                                     if (c.positionChanged() && (c.position - down.position).getDistance() > viewConfiguration.touchSlop) return@awaitEachGesture
                                     if (c.changedToUpIgnoreConsumed()) up = c
                                 }
-                                if (count < 2) return@awaitEachGesture
+                                if (count < 2) {
+                                    // a tap on a checklist box ticks or unticks it
+                                    val l = layout ?: return@awaitEachGesture
+                                    val shownNow = l.layoutInput.text
+                                    val at = l.getOffsetForPosition(down.position)
+                                    val slack = 10.dp.toPx()
+                                    val k = listOf(at, at - 1).filter { it in 0 until shownNow.length }.firstOrNull { k ->
+                                        shownNow.getStringAnnotations(Marks.BOX, k, k + 1).isNotEmpty() && l.getBoundingBox(k).let { r ->
+                                            down.position.x in (r.left - slack)..(r.right + slack) && down.position.y in r.top..r.bottom
+                                        }
+                                    } ?: return@awaitEachGesture
+                                    val tagAt = shownNow.getStringAnnotations(Marks.BOX, k, k + 1).first().item.toInt()
+                                    val toggled = com.opensolr.notes.ui.Checklist.toggleAt(body, tagAt) ?: return@awaitEachGesture
+                                    com.opensolr.notes.ui.Haptics.toggle(view, shownNow[k] == Marks.BOX_OFF)
+                                    remember(body, coalesce = false)
+                                    body = toggled
+                                    return@awaitEachGesture
+                                }
                                 val l = layout ?: return@awaitEachGesture
                                 val (shown, map) = Marks.render(body.text)
                                 val at = l.getOffsetForPosition(down.position).coerceIn(0, shown.length)
@@ -354,6 +384,7 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
                             }
                         },
                 )
+                }
             }
             Hairline()
             if (existing != null) {
@@ -399,6 +430,11 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
         )
     }
     if (findHelp) FindHelpDialog { findHelp = false }
+    // the note as it is on screen now, saved or not
+    if (sharing) com.opensolr.notes.ui.ShareDialog(notes = {
+        listOf(com.opensolr.notes.data.Note(existing?.id ?: "", title.trim(), body.text, category, existing?.createdAt ?: System.currentTimeMillis(), System.currentTimeMillis(), false, false))
+    }, onDismiss = { sharing = false }, onLink = existing?.let { { sharing = false; linking = true } })
+    if (linking && existing != null) com.opensolr.notes.ui.NoteLinkDialog(vm, existing.id) { linking = false }
     if (confirmDelete && existing != null) {
         ConfirmDialog(
             title = stringResource(R.string.delete_note_q), text = stringResource(R.string.delete_note_text), action = stringResource(R.string.delete),
@@ -406,6 +442,18 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
             onConfirm = { confirmDelete = false; vm.delete(existing.id) },
         )
     }
+}
+
+/**
+ * The note's clipboard: what is copied or cut goes out as the note reads (no tags: lines, bullets, ☐ / ☑),
+ * and plain text pasted in gets its checklist boxes back.
+ */
+private class PlainClipboard(private val system: androidx.compose.ui.platform.ClipboardManager) : androidx.compose.ui.platform.ClipboardManager by system {
+    override fun setText(annotatedString: androidx.compose.ui.text.AnnotatedString) {
+        system.setText(androidx.compose.ui.text.AnnotatedString(Marks.render(annotatedString.text).first.text.replace('\u00A0', ' ')))
+    }
+    override fun getText(): androidx.compose.ui.text.AnnotatedString? =
+        system.getText()?.let { androidx.compose.ui.text.AnnotatedString(com.opensolr.notes.ui.Checklist.fromPlain(it.text)) }
 }
 
 /** Counts taps that land close together in space and time: 1, 2, 3… */
@@ -420,9 +468,9 @@ private class MultiTap {
     }
 }
 
-/** B, I, U, the link, then the word-wrap switch, then undo and redo. */
+/** B, I, U, the link, the checklist, then the word-wrap switch, then undo and redo. */
 @Composable
-private fun FormatRow(onTag: (String) -> Unit, onLink: () -> Unit, wrap: Boolean, onWrap: () -> Unit, canUndo: Boolean, canRedo: Boolean, onUndo: () -> Unit, onRedo: () -> Unit) {
+private fun FormatRow(onTag: (String) -> Unit, onChecklist: () -> Unit, onLink: () -> Unit, wrap: Boolean, onWrap: () -> Unit, canUndo: Boolean, canRedo: Boolean, onUndo: () -> Unit, onRedo: () -> Unit) {
     val p = LocalPalette.current
     @Composable fun IconBox(icon: Int, enabled: Boolean, on: Boolean = false, onClick: () -> Unit) {
         Box(
@@ -451,7 +499,7 @@ private fun FormatRow(onTag: (String) -> Unit, onLink: () -> Unit, wrap: Boolean
             Spacer(Modifier.width(6.dp))
         }
         IconBox(R.drawable.ic_link, enabled = true, onClick = onLink)
-        Spacer(Modifier.width(6.dp))
+        IconBox(R.drawable.ic_checklist, enabled = true, onClick = onChecklist)
         IconBox(R.drawable.ic_wrap, enabled = true, on = wrap, onClick = onWrap)
         Spacer(Modifier.width(6.dp))
         IconBox(R.drawable.ic_undo, enabled = canUndo, onClick = onUndo)

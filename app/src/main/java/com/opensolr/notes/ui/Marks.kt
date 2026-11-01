@@ -22,12 +22,18 @@ object Marks {
     private val token = Regex(NoteText.TAG_PATTERN + "|" + NoteText.ENTITY_PATTERN, RegexOption.IGNORE_CASE)
     private val blocks = setOf("p", "div", "ul", "ol", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre", "table", "tr", "caption")
     private val linkColor = Color(0xFFC05520)
+    /** The annotation on a checklist box's character: the offset of its tag in the note's text. */
+    const val BOX = "box"
+    const val BOX_OFF = '\u2610'
+    const val BOX_ON = '\u2611'
 
     /** The text without tags, styled where they were (links carry a "url" annotation), plus the offset mapping. */
     fun render(text: String): Pair<AnnotatedString, IntArray> {
         val out = StringBuilder()
         val spans = ArrayList<AnnotatedString.Range<SpanStyle>>()
         val links = ArrayList<AnnotatedString.Range<String>>()
+        // each checklist box: its character on screen, the offset of its tag in the text
+        val boxes = ArrayList<AnnotatedString.Range<String>>()
         // for every original offset 0..text.length, the offset in the rendered text
         val map = IntArray(text.length + 1)
         val open = ArrayList<Triple<String, Int, String>>()
@@ -64,6 +70,10 @@ object Marks {
                         "br" -> out.append('\n')
                         "hr" -> { breakLine(); out.append("―".repeat(12)).append('\n') }
                         "img" -> out.append("[image]")
+                        "input" -> NoteText.checkbox(m.groupValues[3])?.let { on ->
+                            boxes.add(AnnotatedString.Range(start.toString(), out.length, out.length + 1))
+                            out.append(if (on) BOX_ON else BOX_OFF)
+                        }
                         "li" -> {
                             breakLine()
                             val n = listNumbers.lastOrNull()
@@ -75,7 +85,7 @@ object Marks {
                             if (tag == "ul") listNumbers.add(0)
                         }
                     }
-                    if (tag != "br" && tag != "hr" && tag != "img") open.add(Triple(tag, out.length, if (tag == "a") NoteText.href(m.groupValues[3]) else ""))
+                    if (tag != "br" && tag != "hr" && tag != "img" && tag != "input") open.add(Triple(tag, out.length, if (tag == "a") NoteText.href(m.groupValues[3]) else ""))
                 }
             }
             // the tag's own characters after its first map past what it put on screen, so the cursor never lands inside it
@@ -91,10 +101,42 @@ object Marks {
         val b = AnnotatedString.Builder(out.toString())
         spans.forEach { b.addStyle(it.item, it.start, it.end) }
         links.forEach { b.addStringAnnotation("url", it.item, it.start, it.end) }
+        boxes.forEach {
+            b.addStyle(SpanStyle(color = linkColor, fontWeight = FontWeight.Bold, fontSize = 1.5.em), it.start, it.end)
+            b.addStringAnnotation(BOX, it.item, it.start, it.end)
+        }
         return b.toAnnotatedString() to map
     }
 
     fun plainStyled(text: String): AnnotatedString = render(text).first
+
+    /**
+     * One key of Backspace or Delete next to a tag takes out a character of the tag (its ">"), which would leave the
+     * tag as text on screen. It is made what the writer sees: the character shown before (Backspace) or after (Delete)
+     * the cursor goes, and a checklist box goes whole, with the space after it. Null when the edit is not that case.
+     */
+    fun fixDelete(before: androidx.compose.ui.text.input.TextFieldValue, after: androidx.compose.ui.text.input.TextFieldValue): androidx.compose.ui.text.input.TextFieldValue? {
+        val old = before.text
+        if (after.text.length != old.length - 1 || !before.selection.collapsed) return null
+        var p = 0
+        while (p < after.text.length && old[p] == after.text[p]) p++
+        if (old.substring(p + 1) != after.text.substring(p)) return null
+        val toks = token.findAll(old).toList()
+        if (toks.none { p in it.range }) return null
+        val back = before.selection.start == p + 1
+        val (shown, map) = render(old)
+        val cr = map[before.selection.start.coerceIn(0, old.length)]
+        val ti = if (back) cr - 1 else cr
+        if (ti < 0 || ti >= shown.length) return before
+        // the original offset of the shown character: the last offset that maps to it and the next one past it
+        var k = -1
+        for (i in 0 until old.length) if (map[i] == ti && map[i + 1] > ti) { k = i; break }
+        if (k < 0) return before
+        val tok = toks.firstOrNull { it.range.first == k }
+        var end = if (tok != null) tok.range.last + 1 else k + 1
+        if (tok != null && shown.getStringAnnotations(BOX, ti, ti + 1).isNotEmpty() && end < old.length && (old[end] == ' ' || old[end] == '\u00A0')) end++
+        return androidx.compose.ui.text.input.TextFieldValue(old.substring(0, k) + old.substring(end), androidx.compose.ui.text.TextRange(k))
+    }
 
     /** The original offset for a rendered one: the last original offset mapping at or before it. */
     fun toOriginal(map: IntArray, offset: Int): Int {

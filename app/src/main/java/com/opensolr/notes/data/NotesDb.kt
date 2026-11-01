@@ -297,7 +297,7 @@ object NoteText {
     private val sentenceEnd = Regex("(?<=[.!?])\\s+|\\n+")
 
     /** The tags a note may hold (the same list as the web editor and the server): group 1 = "/", 2 = name, 3 = attributes. */
-    const val TAG_PATTERN = "<(/?)(a|b|strong|i|em|u|s|strike|del|ins|mark|small|sub|sup|code|kbd|span|p|div|br|hr|ul|ol|li|h[1-6]|blockquote|pre|table|thead|tbody|tfoot|tr|td|th|caption|img)\\b((?:[^<>\"']|\"[^\"]*\"|'[^']*')*)/?>"
+    const val TAG_PATTERN = "<(/?)(a|b|strong|i|em|u|s|strike|del|ins|mark|small|sub|sup|code|kbd|span|p|div|br|hr|ul|ol|li|h[1-6]|blockquote|pre|table|thead|tbody|tfoot|tr|td|th|caption|img|input)\\b((?:[^<>\"']|\"[^\"]*\"|'[^']*')*)/?>"
     const val ENTITY_PATTERN = "&(?:#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[a-zA-Z][a-zA-Z0-9]{1,31});"
     private val tag = Regex(TAG_PATTERN, RegexOption.IGNORE_CASE)
     private val entityRe = Regex(ENTITY_PATTERN)
@@ -315,6 +315,12 @@ object NoteText {
         return if (cp != null && cp in 1..0x10FFFF) String(Character.toChars(cp)) else e
     }
 
+    /** A checklist box: true when ticked, false when not, null when the input is not a checkbox. */
+    fun checkbox(attrs: String): Boolean? {
+        if (!Regex("""\btype\s*=\s*(?:"checkbox"|'checkbox'|checkbox(?=[\s/>]|$))""", RegexOption.IGNORE_CASE).containsMatchIn(attrs)) return null
+        return Regex("""(?:^|\s)checked(?:\s*=|\s|/|$)""", RegexOption.IGNORE_CASE).containsMatchIn(attrs)
+    }
+
     /** The address of a link tag's attributes, when it is http, https or mailto. */
     fun href(attrs: String): String {
         val v = Regex("""href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))""", RegexOption.IGNORE_CASE).find(attrs) ?: return ""
@@ -329,6 +335,8 @@ object NoteText {
             val t = m.groupValues[2].lowercase()
             val closing = m.groupValues[1] == "/"
             when {
+                // a checklist box reads as the box itself, ticked or not
+                t == "input" -> when (checkbox(m.groupValues[3])) { true -> "\u2611"; false -> "\u2610"; null -> "" }
                 t == "br" || (closing && t in blockEnd) || (!closing && (t == "li" || t == "hr")) -> "\n"
                 closing && (t == "td" || t == "th") -> " "
                 else -> ""

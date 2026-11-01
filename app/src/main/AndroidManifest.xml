@@ -61,5 +61,15 @@
         <receiver
             android:name=".net.SelfUpdate$ResultReceiver"
             android:exported="false" />
+        <!-- the files of a share (a note as PDF, Word, HTML or text), lent to the app that takes them -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/share_paths" />
+        </provider>
     </application>
 </manifest>

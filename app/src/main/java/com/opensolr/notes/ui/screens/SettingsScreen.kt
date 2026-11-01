@@ -78,6 +78,9 @@ fun SettingsScreen(vm: AppViewModel) {
                 GhostButton(stringResource(R.string.sign_out), onClick = { confirmSignOut = true }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
             }
+            Zone(stringResource(R.string.links_zone), 0, "links" in open, { toggle("links") }) {
+                com.opensolr.notes.ui.NoteLinksZone(vm)
+            }
             Zone(stringResource(R.string.ai), 0, "ai" in open, { toggle("ai") }) {
                 ToggleRow(stringResource(R.string.ai_search), stringResource(R.string.ai_search_hint), aiSearch) { aiSearch = it; vm.prefs.aiSearch = it; Haptics.toggle(view, it) }
             }

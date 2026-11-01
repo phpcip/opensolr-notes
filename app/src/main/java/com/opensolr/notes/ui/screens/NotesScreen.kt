@@ -105,9 +105,7 @@ fun NotesScreen(vm: AppViewModel) {
     androidx.activity.compose.BackHandler(enabled = selected.isNotEmpty()) { selected = emptySet() }
     Column(Modifier.fillMaxSize()) {
         if (selected.isNotEmpty()) {
-            TopBar(stringResource(R.string.selected_count, selected.size), onBack = { selected = emptySet() }) {
-                IconBtn(R.drawable.ic_delete, { confirmMany = true }, strong = true, contentDescription = stringResource(R.string.delete_selected))
-            }
+            TopBar(stringResource(R.string.selected_count, selected.size), onBack = { selected = emptySet() })
         } else TopBar(stringResource(R.string.app_name)) {
             // sync or search in progress
             if (vm.searching && !vm.syncing) androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), color = p.accent, strokeWidth = 2.dp)
@@ -146,7 +144,7 @@ fun NotesScreen(vm: AppViewModel) {
         vm.problem?.let { Notice(it); Hairline() }
         val found = if (vm.hits != null) vm.found() else null
         // Pull down: the index is synced (changes from the web editor or another phone come in) and the list reloads.
-        com.opensolr.notes.ui.RefreshBox(refreshing = vm.syncing, onRefresh = { vm.syncNow(); if (vm.query.isNotBlank()) vm.search(vm.query) }, modifier = Modifier.fillMaxSize()) {
+        com.opensolr.notes.ui.RefreshBox(refreshing = vm.syncing, onRefresh = { vm.syncNow(); if (vm.query.isNotBlank()) vm.search(vm.query) }, modifier = Modifier.fillMaxWidth().weight(1f)) {
             if (found != null) {
                 val resultState = androidx.compose.foundation.lazy.rememberLazyListState()
                 val aiCard = found.isNotEmpty() && vm.prefs.vectorAllowed
@@ -169,7 +167,7 @@ fun NotesScreen(vm: AppViewModel) {
                         AiHintsCard(vm.aiText, vm.aiRunning, onAsk = { vm.askAi() }, onClose = { vm.stopAi() })
                     }
                     items(found, key = { it.first.id }) { (note, snippet) ->
-                        NoteRow(note, snippet, onOpen = { if (selected.isNotEmpty()) pick(note.id) else vm.open(note.id) }, picked = note.id in selected)
+                        NoteRow(note, snippet, onOpen = { if (selected.isNotEmpty()) pick(note.id) else vm.open(note.id) }, picked = note.id in selected, linked = note.id in vm.linkedNotes)
                     }
                 }
                 FastScroller(resultState, resultIndex)
@@ -233,7 +231,7 @@ fun NotesScreen(vm: AppViewModel) {
                                 note = note,
                                 onDelete = { confirmDelete = note.id },
                             ) {
-                                NoteRow(note, null, onOpen = { if (selected.isNotEmpty()) pick(note.id) else vm.open(note.id) }, picked = note.id in selected) {
+                                NoteRow(note, null, onOpen = { if (selected.isNotEmpty()) pick(note.id) else vm.open(note.id) }, picked = note.id in selected, linked = note.id in vm.linkedNotes) {
                                     // The grip: three lines at the right of the row. Held still or dragged, the note is caught
                                     // (a double knock, the row lifted) and then follows the finger.
                                     Box(
@@ -276,6 +274,38 @@ fun NotesScreen(vm: AppViewModel) {
                 }
             }
         }
+        // While notes are picked: the dock at the bottom, as in Opensolr Photos — Share, then Delete
+        if (selected.isNotEmpty()) {
+            var sharing by remember { mutableStateOf(false) }
+            var linkNote by remember { mutableStateOf<String?>(null) }
+            Hairline()
+            Row(Modifier.fillMaxWidth().background(p.band).padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DockAction(R.drawable.ic_share, stringResource(R.string.share)) { sharing = true }
+                DockAction(R.drawable.ic_delete, stringResource(R.string.delete), strong = true) { confirmMany = true }
+            }
+            if (sharing) {
+                val ids = selected.toList()
+                com.opensolr.notes.ui.ShareDialog(notes = { vm.db.byIds(ids).let { m -> ids.mapNotNull { m[it] } } }, onDismiss = { sharing = false },
+                    onLink = ids.singleOrNull()?.let { one -> { sharing = false; linkNote = one } })
+            }
+            linkNote?.let { one -> com.opensolr.notes.ui.NoteLinkDialog(vm, one) { linkNote = null } }
+        }
+    }
+}
+
+/** One action of the selection dock: its icon over a short label, on a bordered tile. */
+@Composable
+private fun androidx.compose.foundation.layout.RowScope.DockAction(icon: Int, label: String, strong: Boolean = false, onClick: () -> Unit) {
+    val p = LocalPalette.current
+    val view = LocalView.current
+    val press = rememberPress()
+    Column(
+        Modifier.weight(1f).tile(press) { Haptics.tick(view, strong); onClick() }.padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(painterResource(icon), contentDescription = label, tint = press.tint(p.ink), modifier = Modifier.size(22.dp))
+        Spacer(Modifier.height(4.dp))
+        Text(label, style = MaterialTheme.typography.labelLarge, color = press.tint(p.ink), maxLines = 1)
     }
 }
 
@@ -375,13 +405,17 @@ private fun SwipeRow(note: Note, onDelete: () -> Unit, content: @Composable () -
 
 @androidx.compose.runtime.Composable
 @kotlin.OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-private fun NoteRow(note: Note, snippet: String?, onOpen: () -> Unit, picked: Boolean = false, trailing: (@Composable () -> Unit)? = null) {
+private fun NoteRow(note: Note, snippet: String?, onOpen: () -> Unit, picked: Boolean = false, linked: Boolean = false, trailing: (@Composable () -> Unit)? = null) {
     val p = LocalPalette.current
     // the long press that picks a note is the list's (dragSelect), so a drag after it picks a range
     Row(Modifier.fillMaxWidth().background(if (picked) p.band else p.paper).hapticClickable(onClick = onOpen), verticalAlignment = Alignment.CenterVertically) {
     if (picked) Icon(painterResource(R.drawable.ic_check), contentDescription = null, tint = p.accent, modifier = Modifier.padding(start = 14.dp).size(22.dp))
     Column(Modifier.weight(1f).padding(start = 16.dp, end = if (trailing != null) 4.dp else 16.dp, top = 12.dp, bottom = 12.dp)) {
-        Text(com.opensolr.notes.ui.Marks.plainStyled(note.shownTitle.ifBlank { stringResource(R.string.untitled) }), style = MaterialTheme.typography.titleSmall, color = p.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // a link that still opens: anyone who has it reads (or edits) this note in a browser
+            if (linked) Icon(painterResource(R.drawable.ic_link), contentDescription = stringResource(R.string.link_shared), tint = p.accent, modifier = Modifier.padding(end = 6.dp).size(18.dp))
+            Text(com.opensolr.notes.ui.Marks.plainStyled(note.shownTitle.ifBlank { stringResource(R.string.untitled) }), style = MaterialTheme.typography.titleSmall, color = p.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
         Spacer(Modifier.height(3.dp))
         if (!snippet.isNullOrBlank()) {
             Text(highlighted(snippet), style = MaterialTheme.typography.bodySmall, color = p.muted, maxLines = 3, overflow = TextOverflow.Ellipsis)

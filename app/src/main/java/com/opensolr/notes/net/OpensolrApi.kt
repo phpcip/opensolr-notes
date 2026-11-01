@@ -131,6 +131,36 @@ class OpensolrApi(private val prefs: AppPrefs) {
         json.optLong("updated_l", note.updatedAt)
     }
 
+    /** A link of one note (https://notes.opensolr.com/n/<token>), opened in a browser by anyone who has it. */
+    data class NoteLink(val token: String, val url: String, val canWrite: Boolean, val expiresAt: Long, val expired: Boolean, val createdAt: Long, val noteId: String = "")
+
+    /** The links of a note, newest first. */
+    suspend fun noteLinks(name: String, noteId: String): List<NoteLink> = withContext(Dispatchers.IO) {
+        links(post(MANAGEMENT + "notes_share_list", form { add("core_name", name); add("note_id", noteId) }))
+    }
+
+    /** A new link of a note (with editing when [write], ending after [days], 0 = never): its address and the note's links. */
+    suspend fun noteLinkAdd(name: String, noteId: String, write: Boolean, days: Int): Pair<String, List<NoteLink>> = withContext(Dispatchers.IO) {
+        val text = post(MANAGEMENT + "notes_share_add", form { add("core_name", name); add("note_id", noteId); add("write", if (write) "1" else "0"); add("days", days.toString()) })
+        val url = obj(text).optJSONObject("msg")?.optString("url").orEmpty()
+        if (url.isEmpty()) throw ServiceException(message(text))
+        url to links(text)
+    }
+
+    /** A link removed: it stops opening at once. The note's links that are left. */
+    suspend fun noteLinkRemove(name: String, noteId: String, token: String): List<NoteLink> = withContext(Dispatchers.IO) {
+        links(post(MANAGEMENT + "notes_share_delete", form { add("core_name", name); add("note_id", noteId); add("token", token) })).filter { it.token != token }
+    }
+
+    private fun links(text: String): List<NoteLink> {
+        val json = obj(text)
+        if (!json.optBoolean("status")) throw ServiceException(message(text))
+        val a = json.optJSONObject("msg")?.optJSONArray("links") ?: return emptyList()
+        return (0 until a.length()).mapNotNull { a.optJSONObject(it) }.map {
+            NoteLink(it.optString("token"), it.optString("url"), it.optBoolean("can_write"), it.optLong("expires_at"), it.optBoolean("expired"), it.optLong("created_at"), it.optString("note_id"))
+        }
+    }
+
     /** One notes_sync answer: what the call wrote, what changed elsewhere, where to go on, the index's connection. */
     class SyncAnswer(
         val saved: List<Pair<String, Long>>,
