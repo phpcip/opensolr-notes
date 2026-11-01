@@ -162,6 +162,43 @@ object Marks {
     private val VOID = setOf("br", "hr", "img", "input")
 
     /**
+     * A selection deleted, cut or typed over that took tags with it (it started in bold text and ended outside it, or
+     * the other way): the formatting tags it held stay, after the new text, so a mark is never left open over the rest
+     * of the note or lost from the text after it. A mark wholly inside what was removed goes with it, and so do the
+     * checklist boxes and line breaks it held. Null when no tag was removed.
+     */
+    fun keepTags(before: androidx.compose.ui.text.input.TextFieldValue, after: androidx.compose.ui.text.input.TextFieldValue): androidx.compose.ui.text.input.TextFieldValue? {
+        val old = before.text; val new = after.text
+        if (old == new) return null
+        var p = 0
+        val max = minOf(old.length, new.length)
+        while (p < max && old[p] == new[p]) p++
+        var s = 0
+        while (s < max - p && old[old.length - 1 - s] == new[new.length - 1 - s]) s++
+        val removed = old.substring(p, old.length - s)
+        if (removed.isEmpty()) return null
+        // the formatting tags of what was removed, a pair that opened and closed inside it left out
+        val kept = ArrayList<Pair<String, String>>()
+        for (m in token.findAll(removed)) {
+            if (m.value.startsWith("&")) continue
+            val name = m.groupValues[2].lowercase()
+            if (name in VOID) continue
+            if (m.groupValues[1] == "/") {
+                val at = kept.indexOfLast { it.first == name && !it.second.startsWith("</") }
+                if (at >= 0) kept.removeAt(at) else kept.add(name to m.value)
+            } else kept.add(name to m.value)
+        }
+        if (kept.isEmpty()) return null
+        val inserted = new.substring(p, new.length - s)
+        val tags = kept.joinToString("") { it.second }
+        val text = old.substring(0, p) + inserted + tags + old.substring(old.length - s)
+        val at = p + inserted.length
+        return androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(at), after.composition?.let { c ->
+            if (c.end <= at) c else null
+        })
+    }
+
+    /**
      * One key of Backspace or Delete next to a tag takes out a character of the tag (its ">"), which would leave the
      * tag as text on screen. It is made what the writer sees: the character shown before (Backspace) or after (Delete)
      * the cursor goes, and a checklist box goes whole, with the space after it. Null when the edit is not that case.

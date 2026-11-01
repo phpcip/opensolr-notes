@@ -110,6 +110,9 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
         if (fixed != null) { if (fixed.text != body.text) remember(body, coalesce = false); body = fixed; return }
         val list = com.opensolr.notes.ui.Checklist.onEnter(body, v)
         if (list != null) { remember(body, coalesce = false); body = list; return }
+        // a selection removed across the edge of a mark: the mark's tags stay, so it neither spills over nor goes missing
+        val kept = Marks.keepTags(body, v)
+        if (kept != null) { remember(body, coalesce = false); body = Marks.balance(kept); return }
         if (v.text != body.text) remember(body, coalesce = kotlin.math.abs(v.text.length - body.text.length) == 1)
         body = v
     }
