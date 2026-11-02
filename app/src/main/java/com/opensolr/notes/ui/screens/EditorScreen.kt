@@ -80,6 +80,7 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
     val view = androidx.compose.ui.platform.LocalView.current
     val existing = remember(id) { id?.let { vm.db.get(it) } }
     var title by remember { mutableStateOf(existing?.title.orEmpty()) }
+    var linkBusy by remember { mutableStateOf(false) }
     var body by remember { mutableStateOf(Marks.balance(TextFieldValue(existing?.text.orEmpty(), TextRange(0)))) }
     // the category is no longer edited; a note that has one keeps it
     val category = existing?.category.orEmpty()
@@ -176,6 +177,29 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
             if (s >= m.range.first && e <= close + 4) return LinkAt(m.range.first, m.range.last + 1, close, close + 4, com.opensolr.notes.data.NoteText.href(m.groupValues[1]))
         }
         return null
+    }
+    // A note with a link: every 5 seconds this editor holds the note's lock (people with the link wait while it is open),
+    // learns whether one of them edits it now, and takes a newer save of theirs while nothing was changed here.
+    if (existing != null && existing.id in vm.linkedNotes) {
+        val holder = remember(existing.id) { java.util.UUID.randomUUID().toString().replace("-", "") }
+        var loaded by remember(existing.id) { mutableStateOf(body.text) }
+        LaunchedEffect(existing.id) {
+            var base = existing.updatedAt
+            while (true) {
+                runCatching { vm.noteLock(existing.id, holder, base) }.onSuccess { st ->
+                    linkBusy = st.busy
+                    val newer = st.text
+                    if (newer != null && st.updated > base && body.text == loaded) {
+                        body = Marks.balance(TextFieldValue(newer, TextRange(minOf(body.selection.start, newer.length))))
+                        loaded = body.text
+                        st.title?.let { title = it }
+                    }
+                    if (st.updated > base) base = st.updated
+                }
+                kotlinx.coroutines.delay(5000)
+            }
+        }
+        androidx.compose.runtime.DisposableEffect(existing.id) { onDispose { vm.noteUnlock(existing.id, holder) } }
     }
     var linkDialog by remember { mutableStateOf<LinkAt?>(null) }
     var linkOpen by remember { mutableStateOf(false) }
@@ -280,6 +304,12 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
             canUndo = undoCount > 0, canRedo = redoCount > 0, onUndo = { undoNow() }, onRedo = { redoNow() },
         )
         Hairline()
+        // someone with a link edits this note now: the owner is told, never stopped
+        if (linkBusy) {
+            Text(stringResource(R.string.link_busy), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = p.accent,
+                modifier = Modifier.fillMaxWidth().background(p.band).padding(horizontal = 16.dp, vertical = 10.dp))
+            Hairline()
+        }
         // The title stays put; the text takes the rest of the screen and scrolls inside its own box
         Column(Modifier.fillMaxSize()) {
             Field(value = title, onChange = { title = it }, hint = stringResource(R.string.title_hint), modifier = Modifier.fillMaxWidth())

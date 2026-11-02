@@ -107,4 +107,5 @@
     <string name="links_not_here">このスマホにないノート</string>
     <string name="links_could_not_read">リンクを読み込めませんでした: %1$s</string>
     <string name="link_shared">リンクで共有中</string>
+    <string name="link_busy">リンクを持つ人が今このノートを編集しています。あなたも編集できます。あなたの保存が優先されます。</string>
 </resources>

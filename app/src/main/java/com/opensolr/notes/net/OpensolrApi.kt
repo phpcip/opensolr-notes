@@ -152,6 +152,19 @@ class OpensolrApi(private val prefs: AppPrefs) {
         links(post(MANAGEMENT + "notes_share_delete", form { add("core_name", name); add("note_id", noteId); add("token", token) })).filter { it.token != token }
     }
 
+    /** The open note's state: whether this editor holds its lock, whether someone with a link edits it, its version, and its text when newer. */
+    data class LockState(val held: Boolean, val busy: Boolean, val updated: Long, val text: String?, val title: String?)
+
+    suspend fun noteLock(name: String, noteId: String, holder: String, take: Boolean, release: Boolean, base: Long): LockState = withContext(Dispatchers.IO) {
+        val text = post(MANAGEMENT + "notes_lock", form {
+            add("core_name", name); add("note_id", noteId); add("holder", holder); add("take", if (take) "1" else "0"); add("release", if (release) "1" else "0"); add("base", base.toString())
+        })
+        val json = obj(text)
+        if (!json.optBoolean("status")) throw ServiceException(message(text))
+        val m = json.optJSONObject("msg") ?: JSONObject()
+        LockState(m.optBoolean("held"), m.optBoolean("busy"), m.optLong("updated_l"), if (m.has("text")) m.optString("text") else null, if (m.has("title")) m.optString("title") else null)
+    }
+
     private fun links(text: String): List<NoteLink> {
         val json = obj(text)
         if (!json.optBoolean("status")) throw ServiceException(message(text))

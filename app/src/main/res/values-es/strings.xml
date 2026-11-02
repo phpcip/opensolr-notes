@@ -107,4 +107,5 @@
     <string name="links_not_here">La nota no está en este teléfono</string>
     <string name="links_could_not_read">No se pudieron leer los enlaces: %1$s</string>
     <string name="link_shared">Compartida con un enlace</string>
+    <string name="link_busy">Alguien con el enlace está editando esta nota ahora. Puedes editarla igualmente: tu guardado es el que queda.</string>
 </resources>

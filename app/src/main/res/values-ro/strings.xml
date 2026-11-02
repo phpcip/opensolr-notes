@@ -107,4 +107,5 @@
     <string name="links_not_here">Nota nu e pe acest telefon</string>
     <string name="links_could_not_read">Linkurile nu s-au putut citi: %1$s</string>
     <string name="link_shared">Partajată prin link</string>
+    <string name="link_busy">Cineva cu linkul editează nota acum. Poți s-o editezi și tu: salvarea ta e cea care rămâne.</string>
 </resources>

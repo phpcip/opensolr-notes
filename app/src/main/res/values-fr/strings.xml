@@ -107,4 +107,5 @@
     <string name="links_not_here">Note absente de ce téléphone</string>
     <string name="links_could_not_read">Impossible de lire les liens : %1$s</string>
     <string name="link_shared">Partagée par un lien</string>
+    <string name="link_busy">Quelqu\'un avec le lien modifie cette note en ce moment. Vous pouvez quand même la modifier : votre enregistrement est celui qui reste.</string>
 </resources>

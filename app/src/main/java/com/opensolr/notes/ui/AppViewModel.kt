@@ -48,6 +48,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun noteLinkAdd(noteId: String, write: Boolean, days: Int) = api.noteLinkAdd(index.name, noteId, write, days).also { refreshLinked() }
     suspend fun noteLinkRemove(noteId: String, token: String) = api.noteLinkRemove(index.name, noteId, token).also { refreshLinked() }
 
+    suspend fun noteLock(noteId: String, holder: String, base: Long) = api.noteLock(index.name, noteId, holder, take = true, release = false, base = base)
+
+    /** The editor closed: its lock let go at once, so people with a link can edit. */
+    fun noteUnlock(noteId: String, holder: String) {
+        viewModelScope.launch(Guard) { runCatching { withContext(Dispatchers.IO) { api.noteLock(index.name, noteId, holder, take = false, release = true, base = 0) } } }
+    }
+
     /** The notes that have a link that still opens: a link icon on them in the list. */
     var linkedNotes by mutableStateOf<Set<String>>(emptySet()); private set
 

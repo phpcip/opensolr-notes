@@ -130,4 +130,5 @@
     <string name="links_not_here">Note not on this phone</string>
     <string name="links_could_not_read">Could not read the links: %1$s</string>
     <string name="link_shared">Shared with a link</string>
+    <string name="link_busy">Someone with a link is editing this note now. You can still edit it: your save is the one that stays.</string>
 </resources>
