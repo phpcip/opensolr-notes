@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
@@ -357,6 +358,9 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
                     if (x < hScroll.value || x > hScroll.value + viewportW) hScroll.animateScrollTo((x - viewportW / 3f).toInt().coerceIn(0, hScroll.maxValue))
                 }
             }
+            // a tap on a link: its address and where it is in the note, for "Open link" under it (the cursor still goes where the finger landed)
+            var tapLink by remember { mutableStateOf<Pair<String, androidx.compose.ui.unit.IntOffset>?>(null) }
+            LaunchedEffect(body.text) { tapLink = null }
             val all = p.accent.copy(alpha = 0.22f)
             val transform = remember(found, findAt, all, p.accent, p.onAccent) {
                 if (found.ranges.isEmpty()) Marks.transformation else Find.transformation(found.ranges, findAt, all, p.accent, p.onAccent)
@@ -394,6 +398,17 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
                                     val shownNow = l.layoutInput.text
                                     val at = l.getOffsetForPosition(down.position)
                                     val slack = 10.dp.toPx()
+                                    // a tap on a link offers to open it
+                                    tapLink = listOf(at, at - 1).filter { it in 0 until shownNow.length }.firstNotNullOfOrNull { k ->
+                                        val r = l.getBoundingBox(k)
+                                        if (down.position.x !in (r.left - slack)..(r.right + slack) || down.position.y !in r.top..r.bottom) return@firstNotNullOfOrNull null
+                                        shownNow.getStringAnnotations("url", k, k + 1).firstOrNull()?.item?.let { url ->
+                                            url to androidx.compose.ui.unit.IntOffset(
+                                                down.position.x.toInt(),
+                                                l.getLineBottom(l.getLineForOffset(k)).toInt(),
+                                            )
+                                        }
+                                    }
                                     val k = listOf(at, at - 1).filter { it in 0 until shownNow.length }.firstOrNull { k ->
                                         shownNow.getStringAnnotations(Marks.BOX, k, k + 1).isNotEmpty() && l.getBoundingBox(k).let { r ->
                                             down.position.x in (r.left - slack)..(r.right + slack) && down.position.y in r.top..r.bottom
@@ -419,6 +434,25 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
                             }
                         },
                 )
+                }
+                // the menu follows the line as the note scrolls (the keyboard coming up scrolls it), and hides while that line is out of view
+                tapLink?.let { (url, at) ->
+                    val y = at.y - scroll.value
+                    if (y in 0..viewportH) Box(Modifier.offset { androidx.compose.ui.unit.IntOffset(at.x - (if (wrap) 0 else hScroll.value), at.y - scroll.value) }.size(0.dp)) {
+                        DropdownMenu(
+                            expanded = true, onDismissRequest = { tapLink = null },
+                            properties = androidx.compose.ui.window.PopupProperties(focusable = false),
+                            containerColor = p.paper, modifier = Modifier.border(1.dp, p.hairline),
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.open_link), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = p.accent) },
+                                onClick = {
+                                    tapLink = null
+                                    runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                                },
+                            )
+                        }
+                    }
                 }
             }
             Hairline()

@@ -98,7 +98,16 @@ object Marks {
             styleOf(t)?.let { spans.add(AnnotatedString.Range(it, s, out.length)) }
             if (t == "a" && href.isNotEmpty()) links.add(AnnotatedString.Range(href, s, out.length))
         }
-        val b = AnnotatedString.Builder(out.toString())
+        // an address typed as text reads as a link too (only on screen: the note keeps it as it was written)
+        val shownText = out.toString()
+        for (u in autoUrl.findAll(shownText)) {
+            val url = trimUrl(u.value)
+            val s = u.range.first; val e = s + url.length
+            if (url.isEmpty() || links.any { it.start < e && s < it.end }) continue
+            spans.add(AnnotatedString.Range(styleOf("a")!!, s, e))
+            links.add(AnnotatedString.Range(if (url.startsWith("www.", true)) "https://$url" else url, s, e))
+        }
+        val b = AnnotatedString.Builder(shownText)
         spans.forEach { b.addStyle(it.item, it.start, it.end) }
         links.forEach { b.addStringAnnotation("url", it.item, it.start, it.end) }
         boxes.forEach {
@@ -109,6 +118,20 @@ object Marks {
     }
 
     fun plainStyled(text: String): AnnotatedString = render(text).first
+
+    private val autoUrl = Regex("(?<![\\w@/.-])(?:https?://|www\\.)[^\\s<>\"'\u2018-\u201F\u2610\u2611]+", RegexOption.IGNORE_CASE)
+
+    /** The address without the punctuation that ends the sentence around it; a closing bracket stays when it has its opening one. */
+    private fun trimUrl(v: String): String {
+        var u = v
+        val pairs = mapOf(')' to '(', ']' to '[', '}' to '{')
+        while (u.isNotEmpty()) {
+            val c = u.last()
+            val open = pairs[c]
+            if (c in ".,;:!?'\"" || (open != null && u.count { it == c } > u.count { it == open })) u = u.dropLast(1) else break
+        }
+        return u
+    }
 
     /**
      * The note's tags made well nested, the way it already reads on screen: a close that crosses another tag
