@@ -1,5 +1,6 @@
 package com.opensolr.notes.ui.screens
 
+import com.opensolr.notes.ui.band
 import androidx.compose.foundation.background
 import com.opensolr.notes.ui.dragSelect
 import androidx.compose.foundation.horizontalScroll
@@ -119,7 +120,7 @@ fun NotesScreen(vm: AppViewModel) {
             )
         }
         Row(Modifier.fillMaxWidth().background(p.band).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1f).background(p.paper).padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Box(Modifier.weight(1f).band(p.paper, p.hairline, 0.6f).padding(horizontal = 12.dp, vertical = 10.dp)) {
                 if (vm.query.isEmpty()) Text(stringResource(R.string.search_hint), style = MaterialTheme.typography.bodyMedium, color = p.muted)
                 TextBox(
                     value = vm.query, onValueChange = { vm.type(it) }, singleLine = true,
@@ -129,6 +130,7 @@ fun NotesScreen(vm: AppViewModel) {
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+            com.opensolr.notes.ui.Dock(Modifier.padding(start = 8.dp), fill = false) {
             // Words and meaning, or words only: the switch lights up when the search is by meaning
             if (vm.prefs.vectorAllowed) {
                 var ai by remember { mutableStateOf(vm.prefs.aiSearch) }
@@ -138,6 +140,7 @@ fun NotesScreen(vm: AppViewModel) {
             if (vm.query.isNotEmpty()) IconBtn(R.drawable.ic_check, { vm.search() }, strong = true)
             if (vm.query.isNotEmpty()) IconBtn(R.drawable.ic_close, { vm.search("") })
             IconBtn(R.drawable.ic_chevron_down, { showFilters = !showFilters }, tint = if (vm.filters != Filters()) p.accent else null)
+            }
         }
         Hairline()
         if (showFilters) FilterRow(vm)
