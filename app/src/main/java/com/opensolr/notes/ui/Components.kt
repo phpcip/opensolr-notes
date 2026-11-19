@@ -75,8 +75,9 @@ const val PRESS_HOLD_MS = 260L
 const val PRESS_SCALE = 1.08f
 
 /**
- * Every button of the app: 2px corners, a quiet fill and a thin border at rest. On touch it flips to ink on
- * paper (black on white, white on black) with a thick rim, grows a little, and holds that for [PRESS_HOLD_MS].
+ * Every button of the app: rounded glass, a quiet fill under a faint sheen and a light rim at rest. On touch it
+ * flips to ink on paper (black on white, white on black) with a thick rim, grows a little, and holds that for
+ * [PRESS_HOLD_MS]. Inside a [Dock] it has no frame of its own: only its cell lights up.
  */
 @Composable
 fun Modifier.tile(
@@ -94,7 +95,21 @@ fun Modifier.tile(
     val bg by androidx.compose.animation.animateColorAsState(if (press.on) hit else fill ?: p.buttonFill, speed, label = "tileFill")
     val edge by androidx.compose.animation.animateColorAsState(if (press.on) p.accent else rim ?: p.hairline, speed, label = "tileRim")
     val scale by androidx.compose.animation.core.animateFloatAsState(if (press.on) PRESS_SCALE else 1f, androidx.compose.animation.core.tween(if (press.on) 60 else 200), label = "tileScale")
-    return this.graphicsLayer { scaleX = scale; scaleY = scale }.clip(SHAPE).background(bg).border(if (press.on) 2.dp else rimWidth, edge, SHAPE)
+    if (LocalDock.current) {
+        val cell by androidx.compose.animation.animateColorAsState(
+            when {
+                press.on -> hit
+                solid && fill != null -> fill
+                rim != null -> rim.copy(alpha = 0.16f)
+                else -> Color.Transparent
+            },
+            speed, label = "cellFill",
+        )
+        return this.graphicsLayer { scaleX = scale; scaleY = scale }.clip(DockCellShape).background(cell)
+            .clickable(interactionSource = press.source, indication = null, enabled = enabled, onClick = onClick)
+    }
+    return this.graphicsLayer { scaleX = scale; scaleY = scale }.clip(ButtonShape).background(bg).sheen(ButtonShape)
+        .then(if (press.on) Modifier.border(2.dp, edge, ButtonShape) else Modifier.border(rimWidth, rimBrush(edge), ButtonShape))
         .clickable(interactionSource = press.source, indication = null, enabled = enabled, onClick = onClick)
 }
 
@@ -107,7 +122,7 @@ fun Press.tint(rest: Color, solid: Boolean = false): Color {
 
 /** The header row of every screen: fill, hairline under it, actions on the right. */
 @Composable
-fun TopBar(title: String, onBack: (() -> Unit)? = null, middle: (@Composable RowScope.() -> Unit)? = null, actions: @Composable RowScope.() -> Unit = {}) {
+fun TopBar(title: String, onBack: (() -> Unit)? = null, middle: (@Composable RowScope.() -> Unit)? = null, actions: @Composable () -> Unit = {}) {
     val p = LocalPalette.current
     Row(
         modifier = Modifier.fillMaxWidth().background(p.band).padding(horizontal = 6.dp).height(52.dp),
@@ -121,14 +136,14 @@ fun TopBar(title: String, onBack: (() -> Unit)? = null, middle: (@Composable Row
             title, style = MaterialTheme.typography.titleMedium, color = p.ink, maxLines = 1,
             overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
         )
-        actions()
+        Dock(Modifier.padding(end = 4.dp), fill = false) { actions() }
     }
     Box(Modifier.fillMaxWidth().height(1.dp).background(p.hairline))
 }
 
 /** Top bar while items are selected: a check and the count in the accent, as in Opensolr Photos; a tap on either clears the selection. */
 @Composable
-fun SelectionBar(count: Int, onClear: () -> Unit, actions: @Composable RowScope.() -> Unit = {}) {
+fun SelectionBar(count: Int, onClear: () -> Unit, actions: @Composable () -> Unit = {}) {
     val p = LocalPalette.current
     val view = androidx.compose.ui.platform.LocalView.current
     Row(
@@ -146,7 +161,7 @@ fun SelectionBar(count: Int, onClear: () -> Unit, actions: @Composable RowScope.
                 Text(count.toString(), style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = press.tint(p.accent), maxLines = 1)
             }
         }
-        actions()
+        Dock(Modifier.padding(end = 4.dp), fill = false) { actions() }
     }
     Box(Modifier.fillMaxWidth().height(1.dp).background(p.hairline))
 }
@@ -331,7 +346,7 @@ fun Zone(title: String, badge: Int, open: Boolean, onToggle: () -> Unit, content
     androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth()) {
         Row(
             Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 4.dp)
-                .background(p.accent.copy(alpha = 0.18f), SHAPE)
+                .band(p.accent.copy(alpha = 0.18f), p.hairline)
                 .clickable { Haptics.tick(view, strong = false); onToggle() }
                 .padding(start = 8.dp, end = 10.dp, top = 7.dp, bottom = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -370,7 +385,7 @@ fun SubZone(title: String, open: Boolean, onToggle: () -> Unit, content: @Compos
     val view = androidx.compose.ui.platform.LocalView.current
     androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth()) {
         Row(
-            Modifier.fillMaxWidth().clickable { Haptics.tick(view, strong = false); onToggle() }.padding(vertical = 12.dp),
+            Modifier.fillMaxWidth().padding(vertical = 4.dp).band(p.buttonFill, p.hairline, 0.7f).clickable { Haptics.tick(view, strong = false); onToggle() }.padding(horizontal = 8.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -387,7 +402,6 @@ fun SubZone(title: String, open: Boolean, onToggle: () -> Unit, content: @Compos
         ) {
             androidx.compose.foundation.layout.Column(Modifier.padding(start = 26.dp, bottom = 8.dp)) { content() }
         }
-        Hairline()
     }
 }
 
@@ -516,8 +530,9 @@ fun ToolRow(tools: List<Tool>, modifier: Modifier = Modifier) {
     val p = LocalPalette.current
     val view = androidx.compose.ui.platform.LocalView.current
     // Tiles of a row share one height; a label that does not fit on one line takes two, never cut.
-    Row(modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(modifier.fillMaxWidth()) {
         // A short row keeps small tiles, a quarter of the width each, instead of stretching them.
+        Dock(Modifier.weight(tools.size.coerceAtLeast(1).toFloat())) {
         tools.forEach { t ->
             val press = rememberPress()
             val tint = press.tint(when {
@@ -527,9 +542,8 @@ fun ToolRow(tools: List<Tool>, modifier: Modifier = Modifier) {
             })
             Column(
                 Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .tile(press, t.enabled, rim = if (t.accent || t.active) p.accent else null) { if (t.strong) Haptics.tick(view, true) else Haptics.tap(view); t.onClick() }
+                    .padding(3.dp)
+                    .tile(press, t.enabled, rim = if (t.active) p.accent else null) { if (t.strong) Haptics.tick(view, true) else Haptics.tap(view); t.onClick() }
                     .padding(vertical = 6.dp, horizontal = 2.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -540,6 +554,7 @@ fun ToolRow(tools: List<Tool>, modifier: Modifier = Modifier) {
                     maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )
             }
+        }
         }
         if (tools.size < 3) Spacer(Modifier.weight((4 - tools.size).toFloat()))
     }

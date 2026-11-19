@@ -278,8 +278,7 @@ fun NotesScreen(vm: AppViewModel) {
         if (selected.isNotEmpty()) {
             var sharing by remember { mutableStateOf(false) }
             var linkNote by remember { mutableStateOf<String?>(null) }
-            Hairline()
-            Row(Modifier.fillMaxWidth().background(p.band).padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            com.opensolr.notes.ui.Dock(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
                 DockAction(R.drawable.ic_share, stringResource(R.string.share)) { sharing = true }
                 DockAction(R.drawable.ic_delete, stringResource(R.string.delete), strong = true) { confirmMany = true }
             }
@@ -295,12 +294,12 @@ fun NotesScreen(vm: AppViewModel) {
 
 /** One action of the selection dock: its icon over a short label, on a bordered tile. */
 @Composable
-private fun androidx.compose.foundation.layout.RowScope.DockAction(icon: Int, label: String, strong: Boolean = false, onClick: () -> Unit) {
+private fun DockAction(icon: Int, label: String, strong: Boolean = false, onClick: () -> Unit) {
     val p = LocalPalette.current
     val view = LocalView.current
     val press = rememberPress()
     Column(
-        Modifier.weight(1f).tile(press) { Haptics.tick(view, strong); onClick() }.padding(vertical = 8.dp),
+        Modifier.padding(3.dp).tile(press) { Haptics.tick(view, strong); onClick() }.padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(painterResource(icon), contentDescription = label, tint = press.tint(p.ink), modifier = Modifier.size(22.dp))

@@ -1,5 +1,7 @@
 package com.opensolr.notes.ui.screens
 
+import com.opensolr.notes.ui.tile
+import com.opensolr.notes.ui.tint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -541,23 +543,26 @@ private class MultiTap {
 @Composable
 private fun FormatRow(onTag: (String) -> Unit, onChecklist: () -> Unit, onLink: () -> Unit, wrap: Boolean, onWrap: () -> Unit, canUndo: Boolean, canRedo: Boolean, onUndo: () -> Unit, onRedo: () -> Unit) {
     val p = LocalPalette.current
+    val view = androidx.compose.ui.platform.LocalView.current
     @Composable fun IconBox(icon: Int, enabled: Boolean, on: Boolean = false, onClick: () -> Unit) {
+        val press = com.opensolr.notes.ui.rememberPress()
         Box(
-            Modifier.size(40.dp, 34.dp).border(1.dp, if (on) p.accent else p.hairline).then(if (enabled) Modifier.hapticClickable { onClick() } else Modifier),
+            Modifier.padding(2.dp).size(40.dp, 36.dp).tile(press, enabled, rim = if (on) p.accent else null) { com.opensolr.notes.ui.Haptics.tap(view); onClick() },
             contentAlignment = Alignment.Center,
         ) {
-            androidx.compose.material3.Icon(painterResource(icon), contentDescription = null, tint = if (!enabled) p.muted else if (on) p.accent else p.ink, modifier = Modifier.size(20.dp))
+            androidx.compose.material3.Icon(painterResource(icon), contentDescription = null, tint = press.tint(if (!enabled) p.muted else if (on) p.accent else p.ink), modifier = Modifier.size(20.dp))
         }
-        Spacer(Modifier.width(6.dp))
     }
     Row(Modifier.fillMaxWidth().background(p.band).padding(horizontal = 12.dp, vertical = 6.dp)) {
+      com.opensolr.notes.ui.Dock(fill = false) {
         listOf("b", "i", "u").forEach { tag ->
+            val press = com.opensolr.notes.ui.rememberPress()
             Box(
-                Modifier.size(40.dp, 34.dp).border(1.dp, p.hairline).hapticClickable { onTag(tag) },
+                Modifier.padding(2.dp).size(40.dp, 36.dp).tile(press) { com.opensolr.notes.ui.Haptics.tap(view); onTag(tag) },
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    tag.uppercase(), color = p.ink,
+                    tag.uppercase(), color = press.tint(p.ink),
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontWeight = if (tag == "b") FontWeight.Bold else FontWeight.Medium,
                         fontStyle = if (tag == "i") FontStyle.Italic else FontStyle.Normal,
@@ -565,13 +570,12 @@ private fun FormatRow(onTag: (String) -> Unit, onChecklist: () -> Unit, onLink: 
                     ),
                 )
             }
-            Spacer(Modifier.width(6.dp))
         }
         IconBox(R.drawable.ic_link, enabled = true, onClick = onLink)
         IconBox(R.drawable.ic_checklist, enabled = true, onClick = onChecklist)
         IconBox(R.drawable.ic_wrap, enabled = true, on = wrap, onClick = onWrap)
-        Spacer(Modifier.width(6.dp))
         IconBox(R.drawable.ic_undo, enabled = canUndo, onClick = onUndo)
         IconBox(R.drawable.ic_redo, enabled = canRedo, onClick = onRedo)
+      }
     }
 }
