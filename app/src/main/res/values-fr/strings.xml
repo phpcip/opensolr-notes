@@ -19,6 +19,7 @@
     <string name="new_note">Nouvelle note</string>
     <string name="edit_note">Note</string>
     <string name="title_hint">Titre (facultatif)</string>
+    <string name="move_line">Déplacer cette ligne</string>
     <string name="text_hint">Écris ta note</string>
     <string name="created_on">Créée le %1$s</string>
     <string name="delete">Supprimer</string>

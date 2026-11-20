@@ -337,6 +337,38 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
                 for (i in dragTops.indices) if (kotlin.math.abs(dragTops[i] - contentY) < kotlin.math.abs(dragTops[best] - contentY)) best = i
                 return best
             }
+            fun beginDrag(tagAt: Int, l: TextLayoutResult, viewY: Float): Int {
+                val text = body.text
+                val starts = com.opensolr.notes.ui.Checklist.lineStarts(text)
+                val from = starts.indexOfLast { it <= tagAt }
+                val (_, map) = Marks.render(text)
+                val max = l.layoutInput.text.length
+                val tops = FloatArray(starts.size + 1)
+                for (i in starts.indices) tops[i] = l.getLineTop(l.getLineForOffset(map[starts[i]].coerceIn(0, max)))
+                tops[starts.size] = l.getLineBottom(l.getLineForOffset(max))
+                dragTops = tops
+                dragViewY = viewY
+                dropAt = from
+                dragLine = from
+                com.opensolr.notes.ui.Haptics.grab(view)
+                return from
+            }
+            fun dropDrag(from: Int, text: String) {
+                if (body.text != text) return
+                com.opensolr.notes.ui.Checklist.moveLine(body, from, dropAt)?.let { moved ->
+                    remember(body, coalesce = false)
+                    body = Marks.balance(moved)
+                    com.opensolr.notes.ui.Haptics.tick(view, true)
+                }
+            }
+            // every checklist line on screen: where its box's tag is in the text, and its top and bottom in the laid out note
+            val boxRows = remember(layout) {
+                val l = layout
+                if (l == null) emptyList() else l.layoutInput.text.getStringAnnotations(Marks.BOX, 0, l.layoutInput.text.length).map { a ->
+                    val line = l.getLineForOffset(a.start.coerceIn(0, l.layoutInput.text.length))
+                    Triple(a.item.toInt(), l.getLineTop(line), l.getLineBottom(line))
+                }
+            }
             // held near the top or bottom edge, the note scrolls under the finger
             LaunchedEffect(dragLine >= 0) {
                 if (dragLine < 0) return@LaunchedEffect
@@ -410,6 +442,8 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
                     modifier = Modifier.fillMaxSize().verticalScroll(scroll)
                         // word wrap off: lines run on and the field scrolls sideways
                         .then(if (wrap) Modifier else Modifier.horizontalScroll(hScroll))
+                        // the grips of the checklist lines stand at the right edge: the text stops before them
+                        .padding(end = if (boxRows.isEmpty()) 0.dp else 34.dp)
                         .focusRequester(focus)
                         // a checklist box held, then dragged: its line moves up or down, to the gap the finger is nearest to
                         .pointerInput(Unit) {
@@ -438,19 +472,8 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
                                 }
                                 if (left != null) return@awaitEachGesture
                                 val text = body.text
-                                val starts = com.opensolr.notes.ui.Checklist.lineStarts(text)
-                                val from = starts.indexOfLast { it <= tagAt }
-                                val (_, map) = Marks.render(text)
-                                val max = shownNow.length
-                                val tops = FloatArray(starts.size + 1)
-                                for (i in starts.indices) tops[i] = l.getLineTop(l.getLineForOffset(map[starts[i]].coerceIn(0, max)))
-                                tops[starts.size] = l.getLineBottom(l.getLineForOffset(max))
-                                dragTops = tops
-                                dragViewY = down.position.y - scroll.value
-                                dropAt = from
-                                dragLine = from
+                                val from = beginDrag(tagAt, l, down.position.y - scroll.value)
                                 heldFinger[0] = down.id.value
-                                com.opensolr.notes.ui.Haptics.grab(view)
                                 var done = false
                                 try {
                                     while (true) {
@@ -462,13 +485,7 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
                                         val next = dropFor(c.position.y)
                                         if (next != dropAt) { dropAt = next; com.opensolr.notes.ui.Haptics.tick(view, false) }
                                     }
-                                    if (done && body.text == text) {
-                                        com.opensolr.notes.ui.Checklist.moveLine(body, from, dropAt)?.let { moved ->
-                                            remember(body, coalesce = false)
-                                            body = Marks.balance(moved)
-                                            com.opensolr.notes.ui.Haptics.tick(view, true)
-                                        }
-                                    }
+                                    if (done) dropDrag(from, text)
                                 } finally {
                                     dragLine = -1; dropAt = -1
                                 }
@@ -529,6 +546,44 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
                             }
                         },
                 )
+                }
+                // a grip at the far right of every checklist line: a finger on it carries the line up or down at once
+                if (boxRows.isNotEmpty()) Box(
+                    Modifier.align(Alignment.TopEnd).width(40.dp).fillMaxSize().pointerInput(Unit) {
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            val l = layout ?: return@awaitEachGesture
+                            val y = down.position.y + scroll.value
+                            val row = boxRows.firstOrNull { y >= it.second && y < it.third } ?: return@awaitEachGesture
+                            down.consume()
+                            val text = body.text
+                            val from = beginDrag(row.first, l, down.position.y)
+                            var done = false
+                            try {
+                                while (true) {
+                                    val ev = awaitPointerEvent()
+                                    val c = ev.changes.firstOrNull { it.id == down.id } ?: break
+                                    c.consume()
+                                    if (c.changedToUpIgnoreConsumed()) { done = true; break }
+                                    dragViewY = c.position.y
+                                    val next = dropFor(c.position.y + scroll.value)
+                                    if (next != dropAt) { dropAt = next; com.opensolr.notes.ui.Haptics.tick(view, false) }
+                                }
+                                if (done) dropDrag(from, text)
+                            } finally {
+                                dragLine = -1; dropAt = -1
+                            }
+                        }
+                    }
+                ) {
+                    val grip = with(androidx.compose.ui.platform.LocalDensity.current) { 22.dp.toPx() }
+                    boxRows.forEach { (_, top, bottom) ->
+                        val y = (top + bottom) / 2f - grip / 2f - scroll.value
+                        if (y > -grip && y < viewportH) androidx.compose.material3.Icon(
+                            painterResource(R.drawable.ic_drag), contentDescription = stringResource(R.string.move_line), tint = p.muted,
+                            modifier = Modifier.align(Alignment.TopEnd).offset { androidx.compose.ui.unit.IntOffset(0, y.toInt()) }.size(22.dp),
+                        )
+                    }
                 }
                 if (dragLine >= 0 && dragLine + 1 < dragTops.size) {
                     val top = dragTops[dragLine] - scroll.value

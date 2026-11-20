@@ -233,7 +233,12 @@ object Marks {
         while (p < after.text.length && old[p] == after.text[p]) p++
         if (old.substring(p + 1) != after.text.substring(p)) return null
         val toks = token.findAll(old).toList()
-        if (toks.none { p in it.range }) return null
+        if (toks.none { p in it.range }) {
+            // Backspace on the one space after a box: the box goes with it, as when the item is emptied
+            val box = toks.firstOrNull { it.range.last + 1 == p && it.groupValues[2].equals("input", ignoreCase = true) }
+            if (box == null || before.selection.start != p + 1 || (old[p] != ' ' && old[p] != '\u00A0')) return null
+            return androidx.compose.ui.text.input.TextFieldValue(old.substring(0, box.range.first) + old.substring(p + 1), androidx.compose.ui.text.TextRange(box.range.first))
+        }
         val back = before.selection.start == p + 1
         val (shown, map) = render(old)
         val cr = map[before.selection.start.coerceIn(0, old.length)]

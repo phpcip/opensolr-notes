@@ -19,6 +19,7 @@
     <string name="new_note">新笔记</string>
     <string name="edit_note">笔记</string>
     <string name="title_hint">标题（可选）</string>
+    <string name="move_line">移动此行</string>
     <string name="text_hint">写下你的笔记</string>
     <string name="created_on">创建于 %1$s</string>
     <string name="delete">删除</string>

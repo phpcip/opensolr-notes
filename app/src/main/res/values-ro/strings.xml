@@ -19,6 +19,7 @@
     <string name="new_note">Notă nouă</string>
     <string name="edit_note">Notă</string>
     <string name="title_hint">Titlu (opțional)</string>
+    <string name="move_line">Mută rândul</string>
     <string name="text_hint">Scrie nota</string>
     <string name="created_on">Creată %1$s</string>
     <string name="delete">Șterge</string>

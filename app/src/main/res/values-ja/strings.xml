@@ -19,6 +19,7 @@
     <string name="new_note">新しいメモ</string>
     <string name="edit_note">メモ</string>
     <string name="title_hint">タイトル（任意）</string>
+    <string name="move_line">この行を移動</string>
     <string name="text_hint">メモを書く</string>
     <string name="created_on">作成 %1$s</string>
     <string name="delete">削除</string>

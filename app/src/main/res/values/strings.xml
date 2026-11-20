@@ -26,6 +26,7 @@
     <string name="new_note">New note</string>
     <string name="edit_note">Note</string>
     <string name="title_hint">Title (optional)</string>
+    <string name="move_line">Move this line</string>
     <string name="text_hint">Write your note</string>
     <string name="created_on">Created %1$s</string>
     <string name="delete">Delete</string>
