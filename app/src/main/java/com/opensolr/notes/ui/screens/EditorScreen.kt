@@ -325,6 +325,35 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
             var viewportH by remember { mutableStateOf(0) }
             var viewportW by remember { mutableStateOf(0) }
             val hScroll = rememberScrollState()
+            // a checklist line held by its box and dragged: the line, the gap it would land in, where every line starts on screen
+            var dragLine by remember { mutableStateOf(-1) }
+            var dropAt by remember { mutableStateOf(-1) }
+            var dragTops by remember { mutableStateOf(FloatArray(0)) }
+            var dragViewY by remember { mutableStateOf(0f) }
+            // the finger that held a box long enough to move its line: lifting it is not a tap on the box
+            val heldFinger = remember { longArrayOf(-1L) }
+            fun dropFor(contentY: Float): Int {
+                var best = 0
+                for (i in dragTops.indices) if (kotlin.math.abs(dragTops[i] - contentY) < kotlin.math.abs(dragTops[best] - contentY)) best = i
+                return best
+            }
+            // held near the top or bottom edge, the note scrolls under the finger
+            LaunchedEffect(dragLine >= 0) {
+                if (dragLine < 0) return@LaunchedEffect
+                while (dragLine >= 0) {
+                    androidx.compose.runtime.withFrameNanos { }
+                    val edge = viewportH * 0.12f
+                    val step = when {
+                        dragViewY < edge -> -(edge - dragViewY) / 4f
+                        dragViewY > viewportH - edge -> (dragViewY - (viewportH - edge)) / 4f
+                        else -> 0f
+                    }
+                    if (step != 0f) {
+                        scroll.scrollTo((scroll.value + step.toInt()).coerceIn(0, scroll.maxValue))
+                        if (dragLine >= 0) dropAt = dropFor(dragViewY + scroll.value)
+                    }
+                }
+            }
             val imeBottom = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)
             // The line with the cursor stays in view: three lines under it when the keyboard comes up, and when the cursor
             // moves the text scrolls only if that line left the view, so a tap puts the cursor where the finger landed
@@ -382,6 +411,69 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
                         // word wrap off: lines run on and the field scrolls sideways
                         .then(if (wrap) Modifier else Modifier.horizontalScroll(hScroll))
                         .focusRequester(focus)
+                        // a checklist box held, then dragged: its line moves up or down, to the gap the finger is nearest to
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                                heldFinger[0] = -1L
+                                val l = layout ?: return@awaitEachGesture
+                                val shownNow = l.layoutInput.text
+                                val at = l.getOffsetForPosition(down.position)
+                                val slack = 10.dp.toPx()
+                                val k = listOf(at, at - 1).filter { it in 0 until shownNow.length }.firstOrNull { k ->
+                                    shownNow.getStringAnnotations(Marks.BOX, k, k + 1).isNotEmpty() && l.getBoundingBox(k).let { r ->
+                                        down.position.x in (r.left - slack)..(r.right + slack) && down.position.y in r.top..r.bottom
+                                    }
+                                } ?: return@awaitEachGesture
+                                val tagAt = shownNow.getStringAnnotations(Marks.BOX, k, k + 1).first().item.toInt()
+                                // the field never sees this finger: no cursor, no selection under a held box
+                                down.consume()
+                                val left = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                                    while (true) {
+                                        val ev = awaitPointerEvent(PointerEventPass.Initial)
+                                        val c = ev.changes.firstOrNull { it.id == down.id } ?: break
+                                        if (c.changedToUpIgnoreConsumed() || (c.position - down.position).getDistance() > viewConfiguration.touchSlop) break
+                                    }
+                                    true
+                                }
+                                if (left != null) return@awaitEachGesture
+                                val text = body.text
+                                val starts = com.opensolr.notes.ui.Checklist.lineStarts(text)
+                                val from = starts.indexOfLast { it <= tagAt }
+                                val (_, map) = Marks.render(text)
+                                val max = shownNow.length
+                                val tops = FloatArray(starts.size + 1)
+                                for (i in starts.indices) tops[i] = l.getLineTop(l.getLineForOffset(map[starts[i]].coerceIn(0, max)))
+                                tops[starts.size] = l.getLineBottom(l.getLineForOffset(max))
+                                dragTops = tops
+                                dragViewY = down.position.y - scroll.value
+                                dropAt = from
+                                dragLine = from
+                                heldFinger[0] = down.id.value
+                                com.opensolr.notes.ui.Haptics.grab(view)
+                                var done = false
+                                try {
+                                    while (true) {
+                                        val ev = awaitPointerEvent(PointerEventPass.Initial)
+                                        val c = ev.changes.firstOrNull { it.id == down.id } ?: break
+                                        c.consume()
+                                        if (c.changedToUpIgnoreConsumed()) { done = true; break }
+                                        dragViewY = c.position.y - scroll.value
+                                        val next = dropFor(c.position.y)
+                                        if (next != dropAt) { dropAt = next; com.opensolr.notes.ui.Haptics.tick(view, false) }
+                                    }
+                                    if (done && body.text == text) {
+                                        com.opensolr.notes.ui.Checklist.moveLine(body, from, dropAt)?.let { moved ->
+                                            remember(body, coalesce = false)
+                                            body = Marks.balance(moved)
+                                            com.opensolr.notes.ui.Haptics.tick(view, true)
+                                        }
+                                    }
+                                } finally {
+                                    dragLine = -1; dropAt = -1
+                                }
+                            }
+                        }
                         // double tap selects the word, triple tap the paragraph; seen after the field placed its cursor
                         .pointerInput(Unit) {
                             awaitEachGesture {
@@ -394,6 +486,7 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
                                     if (c.positionChanged() && (c.position - down.position).getDistance() > viewConfiguration.touchSlop) return@awaitEachGesture
                                     if (c.changedToUpIgnoreConsumed()) up = c
                                 }
+                                if (heldFinger[0] == down.id.value) return@awaitEachGesture
                                 if (count < 2) {
                                     // a tap on a checklist box ticks or unticks it
                                     val l = layout ?: return@awaitEachGesture
@@ -436,6 +529,18 @@ fun EditorScreen(vm: AppViewModel, id: String?) {
                             }
                         },
                 )
+                }
+                if (dragLine >= 0 && dragLine + 1 < dragTops.size) {
+                    val top = dragTops[dragLine] - scroll.value
+                    val tall = dragTops[dragLine + 1] - dragTops[dragLine]
+                    if (top + tall > 0 && top < viewportH) Box(
+                        Modifier.offset { androidx.compose.ui.unit.IntOffset(0, top.toInt()) }.fillMaxWidth()
+                            .height(with(androidx.compose.ui.platform.LocalDensity.current) { tall.toDp() }).background(p.accent.copy(alpha = 0.16f))
+                    )
+                    if (dropAt in dragTops.indices && dropAt != dragLine && dropAt != dragLine + 1) {
+                        val y = dragTops[dropAt] - scroll.value
+                        if (y >= 0 && y <= viewportH) Box(Modifier.offset { androidx.compose.ui.unit.IntOffset(0, y.toInt() - 2) }.fillMaxWidth().height(3.dp).background(p.accent))
+                    }
                 }
                 // the menu follows the line as the note scrolls (the keyboard coming up scrolls it), and hides while that line is out of view
                 tapLink?.let { (url, at) ->

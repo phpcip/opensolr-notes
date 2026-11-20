@@ -121,6 +121,26 @@ object Checklist {
         return apply(v, listOf(Edit(m.range.first, m.range.last + 1 - m.range.first, tag)))
     }
 
+    /** Where each line of the note starts (lines are its newlines). */
+    fun lineStarts(t: String): IntArray {
+        val starts = ArrayList<Int>()
+        starts.add(0)
+        var i = t.indexOf('\n')
+        while (i >= 0) { starts.add(i + 1); i = t.indexOf('\n', i + 1) }
+        return starts.toIntArray()
+    }
+
+    /** A line dragged by its box: line [from] is put before line [to] ([to] = the number of lines: at the end). Null when it stays. */
+    fun moveLine(v: TextFieldValue, from: Int, to: Int): TextFieldValue? {
+        val lines = v.text.split('\n').toMutableList()
+        if (from !in lines.indices || to !in 0..lines.size || to == from || to == from + 1) return null
+        val line = lines.removeAt(from)
+        val at = if (to > from) to - 1 else to
+        lines.add(at, line)
+        val start = lines.take(at).sumOf { it.length + 1 }
+        return TextFieldValue(lines.joinToString("\n"), TextRange(start + line.length))
+    }
+
     /** Plain text pasted in: a line that starts with a box (copied from a checklist) gets its box back. */
     fun fromPlain(text: String): String {
         if (!Regex("(?m)^[☐☑☒]").containsMatchIn(text)) return text
